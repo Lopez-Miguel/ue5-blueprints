@@ -1,9 +1,9 @@
 // interaction.js — puntero: conectar, mover, panear, zoom, seleccionar, borrar.
 
 import { G, getNode, pinPos } from './state.js';
-import { refs, renderNodes, updateWires, applyWorld } from './render.js';
+import { refs, renderNodes, updateWires, applyWorld, applySelection } from './render.js';
 import { T } from './nodeTypes.js';
-import { uid, clamp, $ } from './util.js';
+import { uid, clamp, $, PC } from './util.js';
 import { markDirty } from './storage.js';
 
 let drag = null;       // { mode:'node'|'pan'|'wire', ... }
@@ -14,7 +14,7 @@ export function screenToWorld(cx, cy){
   return { x:(cx - r.left - G.world.x) / G.world.k, y:(cy - r.top - G.world.y) / G.world.k };
 }
 
-function select(s){ G.sel = s; renderNodes(); }
+function select(s){ G.sel = s; applySelection(); }
 
 /* ----------- alta de nodos ----------- */
 export function addNode(type){
@@ -64,7 +64,7 @@ function startWire(pin, e){
     node:pin.dataset.node, pin:pin.dataset.pin, side:pin.dataset.side,
     kind:pin.dataset.kind, dtype:pin.dataset.dtype } };
   refs.tempWire.style.display = '';
-  refs.tempWire.setAttribute('stroke', getComputedStyle(pin.querySelector('.g')).borderLeftColor || '#888');
+  refs.tempWire.setAttribute('stroke', PC[pin.dataset.dtype] || '#888');
   moveTempWire(e.clientX, e.clientY);
 }
 

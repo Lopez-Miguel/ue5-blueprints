@@ -25,6 +25,15 @@ export function renderNodes(){
   updateWires();
 }
 
+// Actualiza SÓLO el resaltado de selección, sin reconstruir los nodos.
+// (Reconstruir el DOM al seleccionar invalidaba el elemento que se estaba
+//  por arrastrar, y eso se sentía como lag al mover o conectar.)
+export function applySelection(){
+  for (const el of refs.worldEl.querySelectorAll('.node'))
+    el.classList.toggle('sel', G.sel?.kind === 'node' && G.sel.id === el.dataset.id);
+  updateWires();
+}
+
 function buildNode(n){
   const t = T[n.type];
   const el = document.createElement('div');
