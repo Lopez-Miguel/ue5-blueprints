@@ -1,0 +1,169 @@
+// nodeTypes.js — el "catálogo" de nodos.
+//
+// Cada tipo define:
+//   title, cat ('ev'|'act'|'flow'|'pure'|'var'), ic (ícono)
+//   inputs / outputs : array de pines, o función(node)->array para pines dinámicos
+//     pin = { name, kind:'exec'|'data', type, label, editable, default }
+//   props   : editores sin pin -> { name, type, label, default }
+//   pure    : eval(node, getIn, ctx) -> { salida: valor }   (se recalcula on-demand)
+//   acción  : run(node, ctx, getIn, fire)                    (efecto + control de flujo)
+//   readData(node, ctx, pin) : salida de dato de un nodo NO puro (eventos, For Loop…)
+//   isEvent : punto de entrada     latent : nodo latente (usa el scheduler)
+//   variableNode : muestra un desplegable para elegir la variable
+
+import { num } from './util.js';
+import { getVar } from './state.js';
+
+const vtype = n => { const v = getVar(n.props.varId); return v ? v.type : 'float'; };
+const vname = n => { const v = getVar(n.props.varId); return v ? v.name : '(sin variable)'; };
+
+export const T = {
+  /* ---------------- eventos ---------------- */
+  event_begin:{ title:'Event BeginPlay', cat:'ev', ic:'▸', isEvent:true,
+    inputs:[], outputs:[{ name:'then', kind:'exec', label:'' }] },
+
+  event_tick:{ title:'Event Tick', cat:'ev', ic:'↻', isEvent:true,
+    inputs:[],
+    outputs:[{ name:'then', kind:'exec', label:'' },
+             { name:'dt', kind:'data', type:'float', label:'Delta Seconds' }],
+    readData:(n, ctx, pin) => pin === 'dt' ? ctx.dt : 0 },
+
+  /* ---------------- acciones ---------------- */
+  print_string:{ title:'Print String', cat:'act', ic:'≡',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'in', kind:'data', type:'string', label:'In String', editable:true, default:'Hola' }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.log(gi('in')); fire('then'); } },
+
+  add_rotation:{ title:'Add Actor Rotation', cat:'act', ic:'⟳',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'deg', kind:'data', type:'float', label:'Delta Degrees', editable:true, default:0 }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.actor.rot += gi('deg'); fire('then'); } },
+
+  set_rotation:{ title:'Set Actor Rotation', cat:'act', ic:'⟳',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'deg', kind:'data', type:'float', label:'Degrees', editable:true, default:0 }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.actor.rot = gi('deg'); fire('then'); } },
+
+  set_location:{ title:'Set Actor Location', cat:'act', ic:'✛',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'x', kind:'data', type:'float', label:'X', editable:true, default:0 },
+            { name:'y', kind:'data', type:'float', label:'Y', editable:true, default:0 }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.actor.x = gi('x'); ctx.actor.y = gi('y'); fire('then'); } },
+
+  add_offset:{ title:'Add Location Offset', cat:'act', ic:'✛',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'dx', kind:'data', type:'float', label:'Delta X', editable:true, default:0 },
+            { name:'dy', kind:'data', type:'float', label:'Delta Y', editable:true, default:0 }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.actor.x += gi('dx'); ctx.actor.y += gi('dy'); fire('then'); } },
+
+  set_scale:{ title:'Set Actor Scale', cat:'act', ic:'⤢',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'s', kind:'data', type:'float', label:'Scale', editable:true, default:1 }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.actor.scale = gi('s'); fire('then'); } },
+
+  /* ---------------- flujo ---------------- */
+  branch:{ title:'Branch', cat:'flow', ic:'⑂',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'cond', kind:'data', type:'bool', label:'Condition', editable:true, default:false }],
+    outputs:[{ name:'true', kind:'exec', label:'True' },
+             { name:'false', kind:'exec', label:'False' }],
+    run:(n, ctx, gi, fire) => fire(gi('cond') ? 'true' : 'false') },
+
+  sequence:{ title:'Sequence', cat:'flow', ic:'⇉',
+    inputs:[{ name:'exec', kind:'exec' }],
+    outputs:[{ name:'t0', kind:'exec', label:'Then 0' },
+             { name:'t1', kind:'exec', label:'Then 1' }],
+    run:(n, ctx, gi, fire) => { fire('t0'); fire('t1'); } },
+
+  forloop:{ title:'For Loop', cat:'flow', ic:'↺',
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'first', kind:'data', type:'int', label:'First Index', editable:true, default:0 },
+            { name:'last',  kind:'data', type:'int', label:'Last Index',  editable:true, default:3 }],
+    outputs:[{ name:'body',  kind:'exec', label:'Loop Body' },
+             { name:'index', kind:'data', type:'int', label:'Index' },
+             { name:'done',  kind:'exec', label:'Completed' }],
+    run:(n, ctx, gi, fire) => {
+      const a = gi('first'), b = gi('last');
+      for (let i = a; i <= b; i++){ n._index = i; fire('body'); if (ctx.overBudget()) break; }
+      fire('done');
+    },
+    readData:(n, ctx, pin) => pin === 'index' ? (n._index || 0) : 0 },
+
+  delay:{ title:'Delay', cat:'flow', ic:'⏲', latent:true,
+    inputs:[{ name:'exec', kind:'exec' },
+            { name:'dur', kind:'data', type:'float', label:'Duration', editable:true, default:1 }],
+    outputs:[{ name:'completed', kind:'exec', label:'Completed' }],
+    // Programa el disparo diferido; 'completed' lo lanza el scheduler.
+    run:(n, ctx, gi) => { ctx.schedule(n.id, gi('dur')); } },
+
+  /* ---------------- variables ---------------- */
+  var_get:{ title:'Get', cat:'var', ic:'◧', variableNode:true,
+    inputs:[],
+    outputs:(n) => [{ name:'value', kind:'data', type:vtype(n), label:vname(n) }],
+    eval:(n, gi, ctx) => ({ value: ctx.vars[n.props.varId] }) },
+
+  var_set:{ title:'Set', cat:'var', ic:'◨', variableNode:true,
+    inputs:(n) => [{ name:'exec', kind:'exec' },
+                   { name:'value', kind:'data', type:vtype(n), label:vname(n), editable:true, default:0 }],
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => { ctx.vars[n.props.varId] = gi('value'); fire('then'); } },
+
+  /* ---------------- puros ---------------- */
+  lit_float:{ title:'Float', cat:'pure', ic:'#',
+    inputs:[], outputs:[{ name:'val', kind:'data', type:'float', label:'' }],
+    props:[{ name:'value', type:'float', label:'', default:0 }],
+    eval:(n) => ({ val: num(n.props.value) }) },
+
+  math_add:{ title:'Add  +', cat:'pure', ic:'+',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') + gi('b') }) },
+
+  math_mul:{ title:'Multiply  ×', cat:'pure', ic:'×',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:1 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:1 }],
+    outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') * gi('b') }) },
+
+  cmp_gt:{ title:'Greater  >', cat:'pure', ic:'>',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') > gi('b') }) },
+
+  math_sin:{ title:'Sin (deg)', cat:'pure', ic:'∿',
+    inputs:[{ name:'x', kind:'data', type:'float', label:'Degrees', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => ({ res: Math.sin(gi('x') * Math.PI / 180) }) },
+
+  get_time:{ title:'Get Time', cat:'pure', ic:'⏱',
+    inputs:[], outputs:[{ name:'t', kind:'data', type:'float', label:'Seconds' }],
+    eval:(n, gi, ctx) => ({ t: ctx.time }) },
+
+  get_location:{ title:'Get Actor Location', cat:'pure', ic:'✛',
+    inputs:[],
+    outputs:[{ name:'x', kind:'data', type:'float', label:'X' },
+             { name:'y', kind:'data', type:'float', label:'Y' }],
+    eval:(n, gi, ctx) => ({ x: ctx.actor.x, y: ctx.actor.y }) },
+
+  get_rotation:{ title:'Get Actor Rotation', cat:'pure', ic:'⟳',
+    inputs:[], outputs:[{ name:'deg', kind:'data', type:'float', label:'Degrees' }],
+    eval:(n, gi, ctx) => ({ deg: ctx.actor.rot }) },
+};
+
+export const PALETTE = [
+  ['Eventos',  ['event_begin', 'event_tick']],
+  ['Acciones', ['print_string', 'add_rotation', 'set_rotation', 'set_location', 'add_offset', 'set_scale']],
+  ['Flujo',    ['branch', 'sequence', 'forloop', 'delay']],
+  ['Variables',['var_get', 'var_set']],
+  ['Puros',    ['lit_float', 'math_add', 'math_mul', 'cmp_gt', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
+];
+
+export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426' };

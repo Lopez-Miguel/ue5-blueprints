@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blueprint Sim</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- barra superior -->
+  <div class="bar">
+    <div class="brand"><span class="dot"></span>Blueprint&nbsp;Sim <small>prototipo</small></div>
+    <div class="spacer"></div>
+    <button class="btn small ghost" id="demo">Demo</button>
+    <button class="btn small ghost" id="export">Exportar</button>
+    <button class="btn small ghost" id="importBtn">Importar</button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <button class="btn ghost" id="reset">Reiniciar</button>
+    <button class="btn play" id="play"><span class="tri"></span><span id="playtxt">Reproducir</span></button>
+  </div>
+
+  <!-- paleta + variables -->
+  <div class="palette">
+    <div id="paletteNodes"></div>
+    <div id="varpanel">
+      <div class="pal-title">Variables</div>
+      <div id="varlist"></div>
+      <button class="addvar" id="addvar">+ Nueva variable</button>
+    </div>
+  </div>
+
+  <!-- lienzo de nodos -->
+  <div class="stage-wrap" id="canvasWrap">
+    <div id="canvas">
+      <div id="world">
+        <svg id="wires">
+          <path id="tempwire" fill="none" stroke-width="3" stroke-linecap="round" style="display:none"></path>
+        </svg>
+      </div>
+    </div>
+    <div class="hint">
+      <b>arrastrá</b> desde un pin para conectar &nbsp;·&nbsp; <b>arrastrá</b> el título para mover<br>
+      <b>rueda</b> zoom &nbsp;·&nbsp; <b>fondo</b> paneo &nbsp;·&nbsp; <b>Supr</b> borra lo seleccionado
+    </div>
+    <div class="zoomctl">
+      <button id="zout">−</button><button id="zin">+</button><button id="zfit" title="reset vista">⤢</button>
+    </div>
+  </div>
+
+  <!-- escenario + consola -->
+  <div class="side">
+    <h3>Escenario</h3>
+    <div class="viewport" id="viewport">
+      <svg viewBox="-160 -160 320 320" id="stage">
+        <defs>
+          <linearGradient id="gact" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3f9be0"/><stop offset="1" stop-color="#1f6fb0"/>
+          </linearGradient>
+        </defs>
+        <g id="grid"></g>
+        <line x1="-160" y1="0" x2="160" y2="0" stroke="#ffffff14"/>
+        <line x1="0" y1="-160" x2="0" y2="160" stroke="#ffffff14"/>
+        <g id="actor">
+          <rect x="-22" y="-22" width="44" height="44" rx="8" fill="url(#gact)" stroke="#7fc2f2" stroke-width="1.5"/>
+          <polygon points="22,-11 40,0 22,11" fill="#7fc2f2"/>
+          <circle r="4" fill="#0c2740"/>
+        </g>
+      </svg>
+      <div class="readout" id="readout"></div>
+    </div>
+    <h3>Consola <button class="clearlog" id="clearlog">limpiar</button></h3>
+    <div class="console" id="console"></div>
+  </div>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
