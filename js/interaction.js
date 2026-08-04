@@ -19,7 +19,8 @@ function select(s){ G.sel = s; applySelection(); }
 /* ----------- alta de nodos ----------- */
 export function addNode(type){
   const r = refs.wrap.getBoundingClientRect();
-  const c = screenToWorld(r.width * 0.42 + (spawnI % 6) * 24, 90 + (spawnI % 6) * 24);
+  const c = screenToWorld(r.left + r.width * 0.4 + (spawnI % 6) * 26,
+                          r.top  + 120            + (spawnI % 6) * 26);
   spawnI++;
   const n = { id:uid(), type, x:Math.round(c.x), y:Math.round(c.y), props:{} };
   const t = T[type];
@@ -28,7 +29,8 @@ export function addNode(type){
   for (const i of ins) if (i.editable) n.props[i.name] = i.default;
   for (const pr of (t.props || [])) n.props[pr.name] = pr.default;
   G.nodes.push(n);
-  select({ kind:'node', id:n.id });
+  G.sel = { kind:'node', id:n.id };
+  renderNodes();   // dibujar el nodo nuevo: select() ya no reconstruye el DOM
   markDirty();
 }
 
