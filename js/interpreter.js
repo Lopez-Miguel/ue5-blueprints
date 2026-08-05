@@ -20,6 +20,9 @@ export const ctx = {
   dt: 0,
   vars: {},                 // { varId: valor }
   timelines: new Map(),     // nodeId -> { t, playing }
+  heat: {},                 // nodeId -> 0..1 (brillo de ejecución, decae por frame)
+  wireHeat: {},             // wireId -> 0..1 (cable recorrido, decae por frame)
+  trace: [],                // pasos del último disparo: { id, title, inPin, values }
   log: () => {},            // lo asigna runtime.js (consola)
   schedule(id, dur){
     if (!scheduler.some(s => s.node === id)) scheduler.push({ node:id, remaining: Math.max(0, dur) });
@@ -57,7 +60,7 @@ export function mkGetIn(nodeId){
 /* -------- ejecución de flujo (push) -------- */
 function fire(nodeId, out){
   const w = G.wires.find(x => x.kind === 'exec' && x.from.node === nodeId && x.from.pin === out);
-  if (w) runNode(w.to.node, w.to.pin);
+  if (w){ ctx.wireHeat[w.id] = 1; runNode(w.to.node, w.to.pin); }
 }
 
 // inPin = nombre del pin de ejecución por el que se entró (por defecto 'exec').
@@ -66,7 +69,12 @@ export function runNode(id, inPin = 'exec'){
   if (steps++ > MAX_STEPS) return;
   const n = getNode(id), t = T[n.type];
   if (!t || !t.run) return;
-  t.run(n, ctx, mkGetIn(id), (out) => fire(id, out), inPin);
+  ctx.heat[id] = 1;
+  // getIn instrumentado: registra qué valores leyó este nodo (para la traza).
+  const base = mkGetIn(id), values = {};
+  const gi = (pin) => { const v = base(pin); values[pin] = v; return v; };
+  ctx.trace.push({ id, title: n.props.title || t.title, inPin, values });
+  t.run(n, ctx, gi, (out) => fire(id, out), inPin);
 }
 
 // Dispara un evento por su tipo (event_begin / event_tick).
@@ -74,7 +82,29 @@ export function fireEvent(type){
   const ev = G.nodes.find(n => n.type === type);
   if (!ev) return;
   steps = 0;
+  ctx.trace = [];
+  ctx.heat[ev.id] = 1;
+  ctx.trace.push({ id: ev.id, title: ev.props.title || T[ev.type].title, inPin: '(evento)', values: {} });
   fire(ev.id, 'then');
+}
+
+// Limpia todo el estado visual de ejecución (al arrancar Play o al reiniciar).
+export function resetInstrumentation(){ ctx.heat = {}; ctx.wireHeat = {}; ctx.trace = []; }
+
+// Enfría el brillo de nodos y cables (llamar una vez por frame, antes de disparar).
+export function decayHeat(){
+  for (const k in ctx.heat){ ctx.heat[k] *= 0.82; if (ctx.heat[k] < 0.02) delete ctx.heat[k]; }
+  for (const k in ctx.wireHeat){ ctx.wireHeat[k] *= 0.82; if (ctx.wireHeat[k] < 0.02) delete ctx.wireHeat[k]; }
+}
+
+// Valor actual de un pin de salida de dato (para los "watch values"). Sin efectos.
+export function outputValue(node, pin){
+  const t = T[node.type];
+  try {
+    if (t.eval)     return t.eval(node, mkGetIn(node.id), ctx)[pin];
+    if (t.readData) return t.readData(node, ctx, pin);
+  } catch (e) {}
+  return undefined;
 }
 
 // Avanza los nodos latentes; los que llegan a 0 disparan su salida 'completed'.

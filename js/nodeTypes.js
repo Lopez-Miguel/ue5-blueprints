@@ -201,3 +201,31 @@ export const PALETTE = [
 ];
 
 export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426' };
+
+// Descripciones breves para el tooltip de cada nodo (material de estudio).
+export const DESC = {
+  event_begin:  'Se dispara una vez, al iniciar la simulación.',
+  event_tick:   'Se dispara cada frame. Delta Seconds = tiempo desde el frame anterior.',
+  print_string: 'Escribe un texto en la consola.',
+  add_rotation: 'Suma grados a la rotación del Actor.',
+  set_rotation: 'Fija la rotación del Actor (en grados).',
+  set_location: 'Fija la posición (X, Y) del Actor.',
+  add_offset:   'Desplaza al Actor sumando a su posición.',
+  set_scale:    'Fija la escala del Actor.',
+  branch:       'If/else: sigue por True o por False según la condición.',
+  sequence:     'Ejecuta sus salidas en orden: primero Then 0, después Then 1.',
+  forloop:      'Repite Loop Body de First a Last; Index es el número de vuelta.',
+  delay:        'Espera Duration segundos y sigue por Completed (nodo latente).',
+  timeline:     'Reproduce una curva en el tiempo. Value = la curva; Alpha = 0→1.',
+  var_get:      'Lee el valor de una variable.',
+  var_set:      'Escribe un valor en una variable.',
+  lit_float:    'Un número constante (dato float).',
+  math_add:     'Suma dos números (nodo puro, sin efectos).',
+  math_mul:     'Multiplica dos números (nodo puro).',
+  cmp_gt:       'Devuelve verdadero si A es mayor que B (nodo puro).',
+  math_sin:     'Seno del ángulo en grados (nodo puro).',
+  get_time:     'Segundos transcurridos desde que arrancó la simulación.',
+  get_location: 'Posición actual (X, Y) del Actor.',
+  get_rotation: 'Rotación actual del Actor, en grados.',
+  ue_node:      'Nodo importado de Unreal (sólo visualización; no se ejecuta).',
+};

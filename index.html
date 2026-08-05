@@ -18,6 +18,8 @@
     <button class="btn small ghost" id="importBtn">Importar</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
     <button class="btn small ghost" id="ueimport">Pegar de UE</button>
+    <button class="btn small ghost" id="help" title="Ayuda: colores de pines y categorías">?</button>
+    <button class="btn ghost" id="once" title="Ejecutar BeginPlay una vez y ver la traza">BeginPlay ▷</button>
     <button class="btn ghost" id="reset">Reiniciar</button>
     <button class="btn play" id="play"><span class="tri"></span><span id="playtxt">Reproducir</span></button>
   </div>
@@ -71,6 +73,8 @@
       </svg>
       <div class="readout" id="readout"></div>
     </div>
+    <h3>Traza de ejecución</h3>
+    <div id="trace"></div>
     <h3>Consola <button class="clearlog" id="clearlog">limpiar</button></h3>
     <div class="console" id="console"></div>
   </div>
@@ -86,6 +90,43 @@
       <span id="ueMsg"></span>
       <button class="btn ghost" id="ueCancel">Cancelar</button>
       <button class="btn play" id="ueDo">Importar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="helpModal" hidden>
+  <div class="modal-box">
+    <h3>Cómo leer el grafo</h3>
+    <div class="help-sec">
+      <h4>Colores de pin (tipo de dato)</h4>
+      <div class="legend">
+        <div class="row"><span class="dot exec" style="--c:var(--exec)"></span> Ejecución (flujo)</div>
+        <div class="row"><span class="dot" style="--c:var(--float)"></span> Float (número)</div>
+        <div class="row"><span class="dot" style="--c:var(--int)"></span> Int (entero)</div>
+        <div class="row"><span class="dot" style="--c:var(--bool)"></span> Bool (verdadero/falso)</div>
+        <div class="row"><span class="dot" style="--c:var(--string)"></span> String (texto)</div>
+        <div class="row"><span class="dot" style="--c:var(--object)"></span> Object (importado)</div>
+      </div>
+    </div>
+    <div class="help-sec">
+      <h4>Categorías de nodo (color de cabecera)</h4>
+      <div class="legend">
+        <div class="row"><span class="sw" style="--c:#8a2b2f"></span> Evento</div>
+        <div class="row"><span class="sw" style="--c:#255a8c"></span> Acción</div>
+        <div class="row"><span class="sw" style="--c:#4b4470"></span> Flujo</div>
+        <div class="row"><span class="sw" style="--c:#33472f"></span> Puro (sin efectos)</div>
+        <div class="row"><span class="sw" style="--c:#6e5426"></span> Variable</div>
+      </div>
+    </div>
+    <div class="help-sec">
+      <h4>Cómo funciona</h4>
+      <p>Los pines <b>blancos</b> son de <b>ejecución</b>: definen el orden en que corren los nodos (se "empujan"). Los pines de <b>color</b> son <b>datos</b>: se calculan cuando alguien los necesita (se "tiran").</p>
+      <p>Al reproducir, los nodos activos se <b>iluminan</b>, los cables recorridos <b>fluyen</b>, y cada pin de dato muestra su <b>valor</b>. El panel de <b>Traza</b> lista el orden de ejecución con los valores leídos.</p>
+      <p>Pasá el mouse por la cabecera de un nodo para ver qué hace. Usá <b>BeginPlay ▷</b> para ejecutar una vez y estudiar el resultado congelado.</p>
+    </div>
+    <div class="modal-actions">
+      <span></span>
+      <button class="btn play" id="helpClose">Entendido</button>
     </div>
   </div>
 </div>

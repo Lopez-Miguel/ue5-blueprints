@@ -1,7 +1,9 @@
 // runtime.js — bucle de simulación, escenario (Actor) y consola.
 
-import { ctx, fireEvent, stepScheduler, stepTimelines, resetScheduler, initVars } from './interpreter.js';
-import { updateWires, renderTimelineHeads } from './render.js';
+import { ctx, fireEvent, stepScheduler, stepTimelines, resetScheduler, initVars,
+         resetInstrumentation, decayHeat } from './interpreter.js';
+import { updateWires, renderTimelineHeads,
+         renderExecHeat, renderWireHeat, renderWatchValues, renderTrace, clearLearning } from './render.js';
 import { $ } from './util.js';
 
 let playing = false, raf = null, last = 0;
@@ -22,6 +24,7 @@ function setBtn(){
 export function play(){
   initVars();
   resetScheduler();
+  resetInstrumentation();
   ctx.actor = { x:0, y:0, rot:0, scale:1 };
   ctx.time = 0; ctx.dt = 0;
   playing = true; setBtn(); updateWires(); renderActor();
@@ -41,12 +44,33 @@ function loop(t){
   const dt = Math.min(0.05, (t - last) / 1000);  // acota el salto tras pausas
   last = t;
   ctx.time += dt; ctx.dt = dt;
+  decayHeat();
   stepScheduler(dt);
   stepTimelines(dt);
   fireEvent('event_tick');
   renderActor();
   renderTimelineHeads();
+  renderExecHeat();
+  renderWireHeat();
+  renderWatchValues();
+  renderTrace();
   raf = requestAnimationFrame(loop);
+}
+
+// Ejecuta BeginPlay una sola vez y congela traza/brillo/valores para estudiarlo.
+export function runOnce(){
+  if (playing) return;
+  initVars();
+  resetScheduler();
+  resetInstrumentation();
+  ctx.actor = { x:0, y:0, rot:0, scale:1 };
+  ctx.time = 0; ctx.dt = 0;
+  fireEvent('event_begin');
+  renderActor();
+  renderExecHeat();
+  renderWireHeat();
+  renderWatchValues();
+  renderTrace(true);
 }
 
 export function renderActor(){
@@ -88,10 +112,12 @@ export function buildStageGrid(){
 // Cablea los botones que maneja el runtime.
 export function bindRuntimeUI(onReset){
   playBtn.onclick = () => (playing ? stop() : play());
+  $('#once').onclick = runOnce;
   $('#reset').onclick = () => {
     stop();
     ctx.actor = { x:0, y:0, rot:0, scale:1 };
-    renderActor(); clearLog();
+    resetInstrumentation();
+    renderActor(); clearLog(); clearLearning();
     onReset?.();
   };
   $('#clearlog').onclick = clearLog;

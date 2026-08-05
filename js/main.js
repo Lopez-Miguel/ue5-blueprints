@@ -67,6 +67,14 @@ function bindUEModal(){
   };
 }
 
+/* -------- modal: ayuda / leyenda -------- */
+function bindHelp(){
+  const modal = $('#helpModal');
+  $('#help').onclick = () => { modal.hidden = false; };
+  $('#helpClose').onclick = () => { modal.hidden = true; };
+  modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+}
+
 /* -------- arranque -------- */
 buildStageGrid();
 if (!loadLocal()) defaultGraph();   // recupera el último trabajo, o carga el demo
@@ -76,6 +84,7 @@ initInteraction();
 bindRuntimeUI();
 bindTopBar();
 bindUEModal();
+bindHelp();
 applyWorld();
 renderNodes();
 renderActor();
