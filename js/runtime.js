@@ -5,6 +5,7 @@ import { ctx, fireEvent, stepScheduler, stepTimelines, resetScheduler, initVars,
 import { updateWires, renderTimelineHeads,
          renderExecHeat, renderWireHeat, renderWatchValues, renderTrace, clearLearning } from './render.js';
 import { $ } from './util.js';
+import { G } from './state.js';
 
 let playing = false, raf = null, last = 0;
 export const isPlaying = () => playing;
@@ -71,6 +72,42 @@ export function runOnce(){
   renderWireHeat();
   renderWatchValues();
   renderTrace(true);
+}
+
+// Corre el grafo unos frames y captura resultados (consola, Actor, variables) para
+// comprobar ejercicios. Deja el resultado visible (traza/brillo/valores congelados).
+export function runHeadless(frames = 90, dt = 1 / 60){
+  stop();
+  initVars();
+  resetScheduler();
+  resetInstrumentation();
+  ctx.actor = { x:0, y:0, rot:0, scale:1 };
+  ctx.time = 0; ctx.dt = dt;
+  clearLog();
+
+  const log = [];
+  const prevLog = ctx.log;
+  ctx.log = m => { log.push(String(m)); prevLog(m); };
+
+  fireEvent('event_begin');
+  for (let i = 0; i < frames; i++){
+    ctx.time += dt; ctx.dt = dt;
+    stepScheduler(dt);
+    stepTimelines(dt);
+    fireEvent('event_tick');
+  }
+  ctx.log = prevLog;
+
+  const vars = {};
+  for (const v of G.variables) vars[v.name] = ctx.vars[v.id];
+  const cap = { log, actor: { ...ctx.actor }, vars, time: ctx.time };
+
+  renderActor();
+  renderExecHeat();
+  renderWireHeat();
+  renderWatchValues();
+  renderTrace(true);
+  return cap;
 }
 
 export function renderActor(){

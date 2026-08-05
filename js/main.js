@@ -4,7 +4,7 @@ import { buildGraph } from './state.js';
 import { T, PALETTE, CAT_COLOR, DESC } from './nodeTypes.js';
 import { renderNodes, applyWorld, clearLearning } from './render.js';
 import { addNode, initInteraction } from './interaction.js';
-import { renderActor, clearLog, bindRuntimeUI, buildStageGrid, stop } from './runtime.js';
+import { renderActor, clearLog, bindRuntimeUI, buildStageGrid, stop, runHeadless } from './runtime.js';
 import { buildVarPanel } from './variables.js';
 import { loadLocal, exportFile, importFile, markDirty } from './storage.js';
 import { importUE } from './interop.js';
@@ -82,18 +82,45 @@ function filterPalette(raw){
 }
 
 /* -------- lecciones -------- */
+let currentLesson = null;
+
 function showLesson(lesson){
   const el = $('#lesson');
+  currentLesson = lesson;
   if (!lesson){ el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
   el.innerHTML = '';
+
   const t = document.createElement('div'); t.className = 'lt'; t.textContent = lesson.title;
   const c = document.createElement('div'); c.className = 'lc'; c.textContent = lesson.concept;
   el.append(t, c);
-  if (lesson.task){
+
+  if (lesson.exercise){
+    const g = document.createElement('div'); g.className = 'lg';
+    const b = document.createElement('b'); b.textContent = 'Objetivo: ';
+    g.append('🎯 ', b, document.createTextNode(lesson.goal));
+    el.appendChild(g);
+
+    const row = document.createElement('div'); row.className = 'lesson-check';
+    const btn = document.createElement('button'); btn.textContent = 'Comprobar';
+    btn.onclick = checkExercise;
+    const st = document.createElement('span'); st.className = 'lesson-status'; st.id = 'lessonStatus';
+    row.append(btn, st);
+    el.appendChild(row);
+  } else if (lesson.task){
     const k = document.createElement('div'); k.className = 'lk'; k.textContent = '🎯 ' + lesson.task;
     el.appendChild(k);
   }
+}
+
+function checkExercise(){
+  if (!currentLesson || !currentLesson.check) return;
+  const cap = runHeadless();
+  let ok = false;
+  try { ok = !!currentLesson.check(cap); } catch (e) { ok = false; }
+  const st = $('#lessonStatus');
+  if (ok){ st.className = 'lesson-status ok'; st.textContent = '✓ ¡Correcto!'; }
+  else { st.className = 'lesson-status bad'; st.textContent = '✗ ' + (currentLesson.hint || 'Todavía no. Revisá las conexiones.'); }
 }
 
 function setStageVisible(v){ document.querySelector('.side').classList.toggle('hide-stage', !v); }
