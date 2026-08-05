@@ -17,6 +17,7 @@
     <button class="btn small ghost" id="export">Exportar</button>
     <button class="btn small ghost" id="importBtn">Importar</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
+    <button class="btn small ghost" id="ueimport">Pegar de UE</button>
     <button class="btn ghost" id="reset">Reiniciar</button>
     <button class="btn play" id="play"><span class="tri"></span><span id="playtxt">Reproducir</span></button>
   </div>
@@ -74,6 +75,19 @@
     <div class="console" id="console"></div>
   </div>
 
+</div>
+
+<div class="modal" id="ueModal" hidden>
+  <div class="modal-box">
+    <h3>Importar desde Unreal Engine</h3>
+    <p>En el editor de Blueprints seleccioná nodos, copialos (Ctrl+C) y pegá el texto acá. Se agregan al grafo como nodos de sólo visualización.</p>
+    <textarea id="ueText" placeholder="Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=&quot;...&quot;&#10;   ...&#10;End Object"></textarea>
+    <div class="modal-actions">
+      <span id="ueMsg"></span>
+      <button class="btn ghost" id="ueCancel">Cancelar</button>
+      <button class="btn play" id="ueDo">Importar</button>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>

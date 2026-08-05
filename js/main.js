@@ -7,6 +7,7 @@ import { addNode, initInteraction } from './interaction.js';
 import { renderActor, clearLog, bindRuntimeUI, buildStageGrid } from './runtime.js';
 import { buildVarPanel } from './variables.js';
 import { loadLocal, exportFile, importFile, markDirty } from './storage.js';
+import { importUE } from './interop.js';
 import { $ } from './util.js';
 
 /* -------- paleta de nodos -------- */
@@ -46,6 +47,26 @@ function bindTopBar(){
   };
 }
 
+/* -------- modal: importar desde Unreal -------- */
+function bindUEModal(){
+  const modal = $('#ueModal'), text = $('#ueText'), msg = $('#ueMsg');
+  const open  = () => { text.value = ''; msg.textContent = ''; modal.hidden = false; text.focus(); };
+  const close = () => { modal.hidden = true; };
+
+  $('#ueimport').onclick = open;
+  $('#ueCancel').onclick = close;
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  $('#ueDo').onclick = () => {
+    const res = importUE(text.value);
+    if (res.error){ msg.textContent = res.error; return; }
+    renderNodes(); markDirty();
+    const w = res.warnings.length ? ` (${res.warnings.length} avisos)` : '';
+    msg.textContent = `Importados ${res.count} nodos y ${res.wireCount} conexiones${w}.`;
+    setTimeout(close, 900);
+  };
+}
+
 /* -------- arranque -------- */
 buildStageGrid();
 if (!loadLocal()) defaultGraph();   // recupera el último trabajo, o carga el demo
@@ -54,6 +75,7 @@ buildVarPanel();
 initInteraction();
 bindRuntimeUI();
 bindTopBar();
+bindUEModal();
 applyWorld();
 renderNodes();
 renderActor();

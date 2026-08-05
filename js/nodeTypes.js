@@ -182,6 +182,14 @@ export const T = {
   get_rotation:{ title:'Get Actor Rotation', cat:'pure', ic:'⟳',
     inputs:[], outputs:[{ name:'deg', kind:'data', type:'float', label:'Degrees' }],
     eval:(n, gi, ctx) => ({ deg: ctx.actor.rot }) },
+
+  // Nodo genérico para grafos importados desde Unreal (sólo visualización).
+  // Sus pines salen de props.pins; el título y el color, de props.title/props.cat.
+  ue_node:{ title:'UE Node', cat:'act', ic:'⬚', imported:true,
+    inputs:(n)  => (n.props.pins || []).filter(p => p.dir === 'in')
+                     .map(p => ({ name:p.name, kind:p.kind, type:p.type, label:p.label })),
+    outputs:(n) => (n.props.pins || []).filter(p => p.dir === 'out')
+                     .map(p => ({ name:p.name, kind:p.kind, type:p.type, label:p.label })) },
 };
 
 export const PALETTE = [

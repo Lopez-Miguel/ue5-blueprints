@@ -7,7 +7,7 @@ export const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 // Colores por tipo de pin (referencian variables CSS del tema).
 export const PC = {
   exec:'var(--exec)', float:'var(--float)', int:'var(--int)',
-  bool:'var(--bool)', string:'var(--string)'
+  bool:'var(--bool)', string:'var(--string)', object:'var(--object)'
 };
 
 // Convierte un valor crudo (de un editor o cable) al tipo del pin destino.

@@ -38,15 +38,18 @@ export function applySelection(){
 
 function buildNode(n){
   const t = T[n.type];
+  const cat = n.props.cat || t.cat;
+  const title = n.props.title || t.title;
   const el = document.createElement('div');
-  el.className = 'node ' + t.cat + (G.sel?.kind === 'node' && G.sel.id === n.id ? ' sel' : '');
+  el.className = 'node ' + cat + (t.imported ? ' imported' : '') +
+    (G.sel?.kind === 'node' && G.sel.id === n.id ? ' sel' : '');
   el.dataset.id = n.id;
   el.style.left = n.x + 'px';
   el.style.top  = n.y + 'px';
 
   const head = document.createElement('div');
   head.className = 'node-header';
-  head.innerHTML = `<span class="ic">${t.ic || ''}</span>${t.title}`;
+  head.innerHTML = `<span class="ic">${t.ic || ''}</span>${title}`;
   el.appendChild(head);
 
   const rows = document.createElement('div');
