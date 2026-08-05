@@ -253,6 +253,13 @@ path.exec.flowing{stroke-dasharray:5 9;animation:flow .55s linear infinite}
 .lesson-card .c{font-size:11.5px;color:var(--muted);line-height:1.45}
 .lesson-lvl{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted-2);font-weight:700;margin:10px 2px 1px}
 .lesson-lvl:first-child{margin-top:0}
+.lesson-badge{display:inline-block;min-width:14px;text-align:center;font-size:10px;font-weight:700;
+  padding:1px 5px;border-radius:9px;background:#33333d;color:var(--muted);margin-left:3px}
+.lesson-badge.complete{background:#1e3a1e;color:var(--float)}
+.lesson-progress{margin:2px 0 12px}
+.lp-bar{height:6px;background:#2c2c34;border-radius:4px;overflow:hidden;margin-bottom:5px}
+.lp-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .3s}
+.lp-txt{font-size:11.5px;color:var(--muted)}
 .lc-badge{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
   padding:1px 6px;border-radius:10px;background:#33333d;color:var(--muted);margin-left:6px;vertical-align:middle}
 .lc-badge.done{background:#1e3a1e;color:var(--float)}

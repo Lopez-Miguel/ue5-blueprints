@@ -18,7 +18,7 @@
   <div class="bar">
     <div class="brand"><span class="dot"></span>Blueprint&nbsp;Sim <small>prototipo</small></div>
     <div class="spacer"></div>
-    <button class="btn small ghost" id="lessons">Lecciones</button>
+    <button class="btn small ghost" id="lessons">Lecciones <span class="lesson-badge" id="lessonBadge"></span></button>
     <button class="btn small ghost" id="export">Exportar</button>
     <button class="btn small ghost" id="importBtn">Importar</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
@@ -142,6 +142,7 @@
   <div class="modal-box">
     <h3>Lecciones</h3>
     <p>Cargá un ejemplo para estudiarlo. Reemplaza el grafo actual.</p>
+    <div class="lesson-progress" id="lessonProgress"></div>
     <div class="lesson-list" id="lessonList"></div>
     <div class="modal-actions"><span></span><button class="btn ghost" id="lessonCancel">Cerrar</button></div>
   </div>

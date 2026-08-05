@@ -196,6 +196,26 @@ function buildLessonList(){
       list.appendChild(card);
     }
   }
+  updateProgressUI();
+}
+
+// Actualiza la insignia del botón y la barra del modal.
+function updateProgressUI(){
+  const prog = getProgress();
+  const ex = LESSONS.filter(l => l.exercise);
+  const done = ex.filter(l => prog[l.id]).length;
+
+  const badge = $('#lessonBadge');
+  if (badge){
+    badge.textContent = `${done}/${ex.length}`;
+    badge.classList.toggle('complete', ex.length > 0 && done === ex.length);
+  }
+  const bar = $('#lessonProgress');
+  if (bar){
+    const pct = ex.length ? Math.round(done / ex.length * 100) : 0;
+    bar.innerHTML = `<div class="lp-bar"><div class="lp-fill" style="width:${pct}%"></div></div>` +
+                    `<span class="lp-txt">${done} / ${ex.length} ejercicios completados</span>`;
+  }
 }
 
 function bindLessons(){

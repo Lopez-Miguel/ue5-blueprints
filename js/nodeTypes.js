@@ -183,6 +183,24 @@ export const T = {
     inputs:[], outputs:[{ name:'deg', kind:'data', type:'float', label:'Degrees' }],
     eval:(n, gi, ctx) => ({ deg: ctx.actor.rot }) },
 
+  /* ---------------- conversiones (autocast) ----------------
+     No están en la paleta: se insertan solos al conectar tipos distintos.
+     El tipo de su pin de entrada sale de props.from.                        */
+  to_string:{ title:'To String', cat:'pure', ic:'→',
+    inputs:(n) => [{ name:'in', kind:'data', type:n.props.from || 'float', label:'' }],
+    outputs:[{ name:'out', kind:'data', type:'string', label:'' }],
+    eval:(n, gi) => ({ out: String(gi('in')) }) },
+
+  to_float:{ title:'To Float', cat:'pure', ic:'→',
+    inputs:(n) => [{ name:'in', kind:'data', type:n.props.from || 'int', label:'' }],
+    outputs:[{ name:'out', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => ({ out: num(gi('in')) }) },
+
+  to_int:{ title:'To Int', cat:'pure', ic:'→',
+    inputs:(n) => [{ name:'in', kind:'data', type:n.props.from || 'float', label:'' }],
+    outputs:[{ name:'out', kind:'data', type:'int', label:'' }],
+    eval:(n, gi) => ({ out: Math.trunc(num(gi('in'))) }) },
+
   // Nodo genérico para grafos importados desde Unreal (sólo visualización).
   // Sus pines salen de props.pins; el título y el color, de props.title/props.cat.
   ue_node:{ title:'UE Node', cat:'act', ic:'⬚', imported:true,
@@ -201,6 +219,14 @@ export const PALETTE = [
 ];
 
 export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426' };
+
+// Autocast: al conectar un pin de dato a otro de tipo distinto, si hay entrada acá
+// se inserta el nodo de conversión correspondiente entre ambos.
+export const CONV = {
+  float: { string:'to_string', int:'to_int' },
+  int:   { string:'to_string', float:'to_float' },
+  bool:  { string:'to_string' },
+};
 
 // Descripciones breves para el tooltip de cada nodo (material de estudio).
 export const DESC = {
@@ -228,4 +254,7 @@ export const DESC = {
   get_location: 'Posición actual (X, Y) del Actor.',
   get_rotation: 'Rotación actual del Actor, en grados.',
   ue_node:      'Nodo importado de Unreal (sólo visualización; no se ejecuta).',
+  to_string:    'Convierte un valor a texto. Se inserta solo al conectar tipos distintos.',
+  to_float:     'Convierte un valor a número decimal.',
+  to_int:       'Convierte un valor a entero (trunca los decimales).',
 };

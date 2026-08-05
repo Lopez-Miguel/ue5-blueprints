@@ -2,7 +2,7 @@
 
 import { G, getNode, pinPos } from './state.js';
 import { refs, renderNodes, updateWires, applyWorld, applySelection } from './render.js';
-import { T } from './nodeTypes.js';
+import { T, CONV } from './nodeTypes.js';
 import { uid, clamp, $, PC } from './util.js';
 import { markDirty } from './storage.js';
 
@@ -117,7 +117,12 @@ function tryConnect(from, to){
   else return;                              // dos pines del mismo lado
   if (out.node === inp.node) return;
   if (out.kind !== inp.kind) return;        // exec sólo con exec
-  if (out.kind === 'data' && out.dtype !== inp.dtype) return;  // tipos deben coincidir
+  if (out.kind === 'data' && out.dtype !== inp.dtype){
+    const conv = CONV[out.dtype]?.[inp.dtype];
+    if (!conv) return;                      // tipos incompatibles y sin conversión
+    insertConversion(out, inp, conv);       // autocast estilo UE
+    return;
+  }
 
   const kind = out.kind;
   // Cardinalidad estilo UE: input de dato = uno; output de exec = uno.
@@ -128,6 +133,22 @@ function tryConnect(from, to){
   }
   G.wires.push({ id:uid('w'), kind, type: kind === 'data' ? out.dtype : 'exec',
     from:{ node:out.node, pin:out.pin }, to:{ node:inp.node, pin:inp.pin } });
+  renderNodes();
+  markDirty();
+}
+
+// Inserta un nodo de conversión entre out (dato tipo A) e inp (dato tipo B).
+function insertConversion(out, inp, convType){
+  const a = pinPos(out.node, out.pin, 'out');
+  const b = pinPos(inp.node, inp.pin, 'in');
+  const n = { id:uid(), type:convType, props:{ from: out.dtype },
+              x: Math.round((a.x + b.x) / 2 - 40), y: Math.round((a.y + b.y) / 2 - 18) };
+  G.nodes.push(n);
+  // el input de dato admite un solo cable
+  G.wires = G.wires.filter(w => !(w.kind === 'data' && w.to.node === inp.node && w.to.pin === inp.pin));
+  G.wires.push({ id:uid('w'), kind:'data', type: out.dtype, from:{ node:out.node, pin:out.pin }, to:{ node:n.id, pin:'in' } });
+  G.wires.push({ id:uid('w'), kind:'data', type: inp.dtype, from:{ node:n.id, pin:'out' }, to:{ node:inp.node, pin:inp.pin } });
+  G.sel = { kind:'node', id:n.id };
   renderNodes();
   markDirty();
 }
