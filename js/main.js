@@ -1,13 +1,15 @@
 // main.js — punto de entrada: arma la UI y arranca todo.
 
-import { G, defaultGraph } from './state.js';
+import { buildGraph } from './state.js';
 import { T, PALETTE, CAT_COLOR, DESC } from './nodeTypes.js';
-import { renderNodes, applyWorld } from './render.js';
+import { renderNodes, applyWorld, clearLearning } from './render.js';
 import { addNode, initInteraction } from './interaction.js';
-import { renderActor, clearLog, bindRuntimeUI, buildStageGrid } from './runtime.js';
+import { renderActor, clearLog, bindRuntimeUI, buildStageGrid, stop } from './runtime.js';
 import { buildVarPanel } from './variables.js';
 import { loadLocal, exportFile, importFile, markDirty } from './storage.js';
 import { importUE } from './interop.js';
+import { LESSONS } from './lessons.js';
+import { ctx, resetInstrumentation } from './interpreter.js';
 import { $ } from './util.js';
 
 /* -------- paleta de nodos (acordeón + búsqueda) -------- */
@@ -79,18 +81,71 @@ function filterPalette(raw){
   }
 }
 
+/* -------- lecciones -------- */
+function showLesson(lesson){
+  const el = $('#lesson');
+  if (!lesson){ el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = '';
+  const t = document.createElement('div'); t.className = 'lt'; t.textContent = lesson.title;
+  const c = document.createElement('div'); c.className = 'lc'; c.textContent = lesson.concept;
+  el.append(t, c);
+  if (lesson.task){
+    const k = document.createElement('div'); k.className = 'lk'; k.textContent = '🎯 ' + lesson.task;
+    el.appendChild(k);
+  }
+}
+
+function setStageVisible(v){ document.querySelector('.side').classList.toggle('hide-stage', !v); }
+
+function loadLesson(lesson, save = true){
+  stop();
+  buildGraph(lesson.spec);
+  ctx.actor = { x:0, y:0, rot:0, scale:1 }; ctx.time = 0;
+  resetInstrumentation();
+  showLesson(lesson);
+  setStageVisible(lesson.usesStage !== false);
+  buildVarPanel();
+  applyWorld();
+  renderNodes();
+  renderActor();
+  clearLearning();
+  clearLog();
+  if (save) markDirty();
+}
+
+function bindLessons(){
+  const modal = $('#lessonModal'), list = $('#lessonList');
+  list.innerHTML = '';
+  for (const lesson of LESSONS){
+    const card = document.createElement('button');
+    card.className = 'lesson-card';
+    card.innerHTML = `<div class="t"></div><div class="c"></div>`;
+    card.querySelector('.t').textContent = lesson.title;
+    card.querySelector('.c').textContent = lesson.concept;
+    card.onclick = () => { loadLesson(lesson); modal.hidden = true; };
+    list.appendChild(card);
+  }
+  $('#lessons').onclick = () => { modal.hidden = false; };
+  $('#lessonCancel').onclick = () => { modal.hidden = true; };
+  modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+}
+
+function bindStageToggle(){
+  $('#stageHead').onclick = () => document.querySelector('.side').classList.toggle('hide-stage');
+}
+
 /* -------- barra superior -------- */
 function bindTopBar(){
-  $('#demo').onclick = () => {
-    defaultGraph(); buildVarPanel(); applyWorld(); renderNodes(); markDirty();
-  };
   $('#export').onclick = exportFile;
   $('#importBtn').onclick = () => $('#importFile').click();
   $('#importFile').onchange = (e) => {
     const f = e.target.files[0];
     if (f) importFile(f, (ok) => {
-      if (ok){ buildVarPanel(); applyWorld(); renderNodes(); markDirty(); }
-      else alert('No pude leer ese archivo como grafo válido.');
+      if (ok){
+        showLesson(null); setStageVisible(true);
+        buildVarPanel(); applyWorld(); renderNodes(); renderActor(); markDirty();
+      } else alert('No pude leer ese archivo como grafo válido.');
     });
     e.target.value = '';
   };
@@ -109,6 +164,7 @@ function bindUEModal(){
   $('#ueDo').onclick = () => {
     const res = importUE(text.value);
     if (res.error){ msg.textContent = res.error; return; }
+    showLesson(null); setStageVisible(true);
     renderNodes(); markDirty();
     const w = res.warnings.length ? ` (${res.warnings.length} avisos)` : '';
     msg.textContent = `Importados ${res.count} nodos y ${res.wireCount} conexiones${w}.`;
@@ -126,16 +182,21 @@ function bindHelp(){
 
 /* -------- arranque -------- */
 buildStageGrid();
-if (!loadLocal()) defaultGraph();   // recupera el último trabajo, o carga el demo
 buildPalette();
 $('#palSearch').addEventListener('input', e => filterPalette(e.target.value));
-buildVarPanel();
 initInteraction();
 bindRuntimeUI();
 bindTopBar();
 bindUEModal();
 bindHelp();
-applyWorld();
-renderNodes();
-renderActor();
-clearLog();
+bindLessons();
+bindStageToggle();
+
+if (loadLocal()){
+  // Recupera el último trabajo guardado.
+  showLesson(null); setStageVisible(true);
+  buildVarPanel(); applyWorld(); renderNodes(); renderActor(); clearLog();
+} else {
+  // Primera visita: abrí la lección 1 (sin autoguardar hasta que el usuario edite).
+  loadLesson(LESSONS[0], false);
+}

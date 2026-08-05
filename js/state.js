@@ -75,39 +75,37 @@ export function deserialize(txt){
   pruneBadWires();
 }
 
-/* --------- grafo demo por defecto ---------
-   Tick.DeltaSeconds × Speed  ->  Add Actor Rotation   (gira usando una VARIABLE)
-   BeginPlay -> Print String                                                    */
-export function defaultGraph(){
-  const sid = uid('v');
-  G.variables = [{ id:sid, name:'Speed', type:'float', def:90 }];
+/* --------- construir un grafo desde una especificación declarativa ---------
+   spec = {
+     vars:  [{ name, type, def }],
+     nodes: [{ k:'tipo', x, y, props:{...}, var:'NombreVar' }],   // var: para var_get/var_set
+     links: [[fromIdx, 'pinSalida', toIdx, 'pinEntrada'], ...],
+     world: { x, y, k }
+   }
+   Usado por las lecciones cargables.                                         */
+export function buildGraph(spec){
+  G.variables = (spec.vars || []).map(v => ({ id:uid('v'), name:v.name, type:v.type || 'float', def:v.def ?? 0 }));
+  const vid = Object.fromEntries(G.variables.map(v => [v.name, v.id]));
 
-  const N = [], W = [];
-  const mk = (type, x, y, props = {}) => {
-    const n = { id:uid(), type, x, y, props:{} };
-    const t = T[type];
+  const N = (spec.nodes || []).map(nd => {
+    const t = T[nd.k];
+    const n = { id:uid(), type:nd.k, x:nd.x || 0, y:nd.y || 0, props:{} };
     const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
-    for (const i of ins) if (i.editable && props[i.name] === undefined) n.props[i.name] = i.default;
-    for (const pr of (t.props || [])) if (n.props[pr.name] === undefined) n.props[pr.name] = pr.default;
-    for (const k in props) n.props[k] = props[k];
-    N.push(n); return n;
-  };
-  const w = (kind, fn, fp, tn, tp, ty) =>
-    W.push({ id:uid('w'), kind, type: ty || (kind === 'exec' ? 'exec' : 'float'),
-             from:{ node:fn, pin:fp }, to:{ node:tn, pin:tp } });
+    for (const i of ins) if (i.editable) n.props[i.name] = i.default;
+    for (const pr of (t.props || [])) n.props[pr.name] = pr.default;
+    Object.assign(n.props, nd.props || {});
+    if (t.variableNode && nd.var) n.props.varId = vid[nd.var];
+    return n;
+  });
 
-  const tick = mk('event_tick', 20, 30);
-  const spd  = mk('var_get', 30, 210, { varId:sid });
-  const mul  = mk('math_mul', 320, 70, { a:1, b:1 });
-  const rot  = mk('add_rotation', 580, 40);
-  const beg  = mk('event_begin', 20, 370);
-  const pr   = mk('print_string', 320, 370, { in:'Blueprint corriendo 🎬' });
+  const W = (spec.links || []).map(([fi, fp, ti, tp]) => {
+    const from = N[fi], to = N[ti];
+    const outs = typeof T[from.type].outputs === 'function' ? T[from.type].outputs(from) : (T[from.type].outputs || []);
+    const od = outs.find(o => o.name === fp);
+    const kind = od && od.kind === 'exec' ? 'exec' : 'data';
+    return { id:uid('w'), kind, type: kind === 'exec' ? 'exec' : (od ? od.type : 'float'),
+             from:{ node:from.id, pin:fp }, to:{ node:to.id, pin:tp } };
+  });
 
-  w('data', tick.id, 'dt',  mul.id, 'a', 'float');
-  w('data', spd.id,  'value', mul.id, 'b', 'float');
-  w('data', mul.id,  'res', rot.id, 'deg', 'float');
-  w('exec', tick.id, 'then', rot.id, 'exec');
-  w('exec', beg.id,  'then', pr.id,  'exec');
-
-  G.nodes = N; G.wires = W; G.sel = null; G.world = { x:60, y:40, k:1 };
+  G.nodes = N; G.wires = W; G.sel = null; G.world = spec.world || { x:60, y:40, k:1 };
 }

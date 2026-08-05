@@ -13,7 +13,7 @@
   <div class="bar">
     <div class="brand"><span class="dot"></span>Blueprint&nbsp;Sim <small>prototipo</small></div>
     <div class="spacer"></div>
-    <button class="btn small ghost" id="demo">Demo</button>
+    <button class="btn small ghost" id="lessons">Lecciones</button>
     <button class="btn small ghost" id="export">Exportar</button>
     <button class="btn small ghost" id="importBtn">Importar</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
@@ -55,7 +55,8 @@
 
   <!-- escenario + consola -->
   <div class="side">
-    <h3>Escenario</h3>
+    <div class="lesson" id="lesson" hidden></div>
+    <h3 class="collapser" id="stageHead"><span>Escenario</span><span class="chev">▾</span></h3>
     <div class="viewport" id="viewport">
       <svg viewBox="-160 -160 320 320" id="stage">
         <defs>
@@ -129,6 +130,15 @@
       <span></span>
       <button class="btn play" id="helpClose">Entendido</button>
     </div>
+  </div>
+</div>
+
+<div class="modal" id="lessonModal" hidden>
+  <div class="modal-box">
+    <h3>Lecciones</h3>
+    <p>Cargá un ejemplo para estudiarlo. Reemplaza el grafo actual.</p>
+    <div class="lesson-list" id="lessonList"></div>
+    <div class="modal-actions"><span></span><button class="btn ghost" id="lessonCancel">Cerrar</button></div>
   </div>
 </div>
 
