@@ -8,7 +8,7 @@
 
 import { G, getNode, inputDef, dataWireInto } from './state.js';
 import { T } from './nodeTypes.js';
-import { coerce } from './util.js';
+import { coerce, num } from './util.js';
 
 const MAX_STEPS = 200000;   // cortafuegos anti-cuelgue para bucles/recursión
 let steps = 0;
@@ -19,6 +19,7 @@ export const ctx = {
   time: 0,
   dt: 0,
   vars: {},                 // { varId: valor }
+  timelines: new Map(),     // nodeId -> { t, playing }
   log: () => {},            // lo asigna runtime.js (consola)
   schedule(id, dur){
     if (!scheduler.some(s => s.node === id)) scheduler.push({ node:id, remaining: Math.max(0, dur) });
@@ -26,7 +27,7 @@ export const ctx = {
   overBudget: () => steps > MAX_STEPS,
 };
 
-export function resetScheduler(){ scheduler.length = 0; }
+export function resetScheduler(){ scheduler.length = 0; ctx.timelines.clear(); }
 
 export function initVars(){
   ctx.vars = {};
@@ -56,14 +57,16 @@ export function mkGetIn(nodeId){
 /* -------- ejecución de flujo (push) -------- */
 function fire(nodeId, out){
   const w = G.wires.find(x => x.kind === 'exec' && x.from.node === nodeId && x.from.pin === out);
-  if (w) runNode(w.to.node);
+  if (w) runNode(w.to.node, w.to.pin);
 }
 
-export function runNode(id){
+// inPin = nombre del pin de ejecución por el que se entró (por defecto 'exec').
+// Casi todos los nodos lo ignoran; Timeline lo usa para distinguir Play de Stop.
+export function runNode(id, inPin = 'exec'){
   if (steps++ > MAX_STEPS) return;
   const n = getNode(id), t = T[n.type];
   if (!t || !t.run) return;
-  t.run(n, ctx, mkGetIn(id), (out) => fire(id, out));
+  t.run(n, ctx, mkGetIn(id), (out) => fire(id, out), inPin);
 }
 
 // Dispara un evento por su tipo (event_begin / event_tick).
@@ -80,4 +83,22 @@ export function stepScheduler(dt){
   const done = scheduler.filter(s => s.remaining <= 0);
   for (const s of done) scheduler.splice(scheduler.indexOf(s), 1);
   for (const s of done){ steps = 0; fire(s.node, 'completed'); }
+}
+
+// Avanza cada Timeline en reproducción; dispara 'update' por frame y 'finished' al terminar.
+export function stepTimelines(dt){
+  for (const [id, s] of ctx.timelines){
+    if (!s.playing) continue;
+    const n = getNode(id);
+    if (!n){ ctx.timelines.delete(id); continue; }
+    const len = Math.max(0.0001, num(n.props.length));
+    s.t += dt;
+    let finished = false;
+    if (s.t >= len){
+      if (n.props.loop) s.t = s.t % len;
+      else { s.t = len; s.playing = false; finished = true; }
+    }
+    steps = 0; fire(id, 'update');
+    if (finished){ steps = 0; fire(id, 'finished'); }
+  }
 }

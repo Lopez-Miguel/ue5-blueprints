@@ -141,3 +141,14 @@ select.ed{width:auto;max-width:150px;cursor:pointer}
 
 @keyframes flow{to{stroke-dashoffset:-16}}
 path.exec.flowing{stroke-dasharray:5 9;animation:flow .55s linear infinite}
+
+/* editor de curva del Timeline */
+.tl-curve{padding:6px 12px 2px}
+.tl-svg{width:100%;height:92px;display:block;background:#141418;border:1px solid var(--line);
+  border-radius:6px;touch-action:none}
+.tl-grid{stroke:#ffffff0d}
+.tl-area{fill:var(--accent);opacity:.09}
+.tl-line{fill:none;stroke:var(--accent);stroke-width:2}
+.tl-pt{fill:#1b1b20;stroke:var(--accent);stroke-width:2;cursor:grab}
+.tl-pt:hover{fill:var(--accent)}
+.tl-head{stroke:var(--float);stroke-width:1.5;pointer-events:none}

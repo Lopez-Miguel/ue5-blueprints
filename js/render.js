@@ -2,8 +2,10 @@
 
 import { G, getNode, getInputs, getOutputs, dataWireInto, pinPos, LAY, pruneBadWires } from './state.js';
 import { T, CAT_COLOR } from './nodeTypes.js';
-import { PC } from './util.js';
+import { PC, num, clamp } from './util.js';
 import { isPlaying } from './runtime.js';
+import { markDirty } from './storage.js';
+import { ctx } from './interpreter.js';
 
 // El DOM ya existe cuando corre un <script type="module"> (es diferido).
 export const refs = {
@@ -77,6 +79,9 @@ function buildNode(n){
     rows.appendChild(row);
   }
 
+  // Timeline: editor de curva (después de las filas de pines, no afecta posiciones).
+  if (t.timelineNode) rows.appendChild(curveEditor(n));
+
   // Nodos de variable: desplegable para elegir la variable (fila SIN pin,
   // renderizada DESPUÉS de las filas de pines para no correr las posiciones).
   if (t.variableNode) rows.appendChild(varSelectRow(n));
@@ -86,6 +91,7 @@ function buildNode(n){
     if (n.props[p.name] === undefined) n.props[p.name] = p.default;
     const pr = document.createElement('div');
     pr.className = 'prop';
+    if (p.label){ const l = document.createElement('span'); l.className = 'lbl'; l.textContent = p.label; pr.appendChild(l); }
     pr.appendChild(editorEl(n, p, true));
     rows.appendChild(pr);
   }
@@ -168,6 +174,7 @@ function varSelectRow(n){
 /* -------------------- cables -------------------- */
 const SVGNS = 'http://www.w3.org/2000/svg';
 const mkPath = () => document.createElementNS(SVGNS, 'path');
+const TLW = 176, TLH = 92;   // dimensiones internas del editor de curva
 
 function wirePath(a, b){
   const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5);
@@ -203,5 +210,98 @@ export function updateWires(){
 
     refs.wiresEl.appendChild(hit);
     refs.wiresEl.appendChild(vis);
+  }
+}
+
+/* -------------------- editor de curva del Timeline -------------------- */
+function mkLine(x1, y1, x2, y2){
+  const l = document.createElementNS(SVGNS, 'line');
+  l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+  l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+  return l;
+}
+
+function curveEditor(n){
+  const pts = (n.props.curve ||= [{ t:0, v:0 }, { t:1, v:1 }]);  // por defecto: rampa 0→1
+  const box = document.createElement('div');
+  box.className = 'tl-curve';
+
+  const svg = document.createElementNS(SVGNS, 'svg');
+  svg.setAttribute('class', 'tl-svg');
+  svg.setAttribute('viewBox', `0 0 ${TLW} ${TLH}`);
+
+  for (let i = 0; i <= 4; i++){
+    const gx = mkLine(i / 4 * TLW, 0, i / 4 * TLW, TLH); gx.setAttribute('class', 'tl-grid'); svg.appendChild(gx);
+    const gy = mkLine(0, i / 4 * TLH, TLW, i / 4 * TLH); gy.setAttribute('class', 'tl-grid'); svg.appendChild(gy);
+  }
+
+  const area = document.createElementNS(SVGNS, 'path');     area.setAttribute('class', 'tl-area'); svg.appendChild(area);
+  const line = document.createElementNS(SVGNS, 'polyline'); line.setAttribute('class', 'tl-line'); svg.appendChild(line);
+  const head = mkLine(0, 0, 0, TLH); head.setAttribute('class', 'tl-head'); head.style.opacity = '0'; svg.appendChild(head);
+  const ptsG = document.createElementNS(SVGNS, 'g'); svg.appendChild(ptsG);
+
+  const X = t => t * TLW, Y = v => TLH - v * TLH;
+  function redraw(){
+    const sorted = [...pts].sort((a, b) => a.t - b.t);
+    line.setAttribute('points', sorted.map(p => `${X(p.t)},${Y(p.v)}`).join(' '));
+    area.setAttribute('d', sorted.length
+      ? `M ${X(sorted[0].t)} ${TLH} L ` + sorted.map(p => `${X(p.t)} ${Y(p.v)}`).join(' L ') +
+        ` L ${X(sorted[sorted.length - 1].t)} ${TLH} Z`
+      : '');
+    ptsG.innerHTML = '';
+    pts.forEach((p, i) => {
+      const c = document.createElementNS(SVGNS, 'circle');
+      c.setAttribute('class', 'tl-pt');
+      c.setAttribute('cx', X(p.t)); c.setAttribute('cy', Y(p.v)); c.setAttribute('r', '4');
+      c.dataset.i = i;
+      ptsG.appendChild(c);
+    });
+  }
+  redraw();
+
+  svg.addEventListener('pointerdown', e => {
+    e.stopPropagation();   // no arrastrar el nodo ni iniciar un cable
+    const r = svg.getBoundingClientRect();
+    const toC = (cx, cy) => ({ t: clamp((cx - r.left) / r.width, 0, 1), v: clamp(1 - (cy - r.top) / r.height, 0, 1) });
+    const target = e.target.closest('.tl-pt');
+    if (target){
+      const i = +target.dataset.i;   // sin ordenar durante el arrastre: el índice se mantiene
+      const move = ev => { const c = toC(ev.clientX, ev.clientY); pts[i] = c; redraw(); };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        pts.sort((a, b) => a.t - b.t); redraw(); markDirty();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    } else {
+      pts.push(toC(e.clientX, e.clientY));
+      pts.sort((a, b) => a.t - b.t); redraw(); markDirty();
+    }
+  });
+  svg.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    const target = e.target.closest('.tl-pt');
+    if (target && pts.length > 2){ pts.splice(+target.dataset.i, 1); redraw(); markDirty(); }
+  });
+
+  box.appendChild(svg);
+  return box;
+}
+
+// Mueve el cabezal (línea vertical) de cada Timeline según su reproducción actual.
+export function renderTimelineHeads(){
+  for (const el of refs.worldEl.querySelectorAll('.node')){
+    const head = el.querySelector('.tl-head');
+    if (!head) continue;
+    const s = ctx.timelines.get(el.dataset.id);
+    if (s){
+      const n = getNode(el.dataset.id);
+      const a = clamp(s.t / Math.max(0.0001, num(n.props.length)), 0, 1);
+      head.setAttribute('x1', a * TLW); head.setAttribute('x2', a * TLW);
+      head.style.opacity = s.playing ? '1' : '.35';
+    } else {
+      head.style.opacity = '0';
+    }
   }
 }

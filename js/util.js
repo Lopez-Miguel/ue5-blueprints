@@ -30,3 +30,21 @@ export function download(filename, text){
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+// Muestrea una curva (array de puntos {t, v} con t en 0..1) en la posición x (0..1),
+// interpolando linealmente entre puntos y fijando los extremos.
+export function sampleCurve(points, x){
+  if (!points || !points.length) return x;
+  const pts = [...points].sort((a, b) => a.t - b.t);
+  if (x <= pts[0].t) return pts[0].v;
+  const lastP = pts[pts.length - 1];
+  if (x >= lastP.t) return lastP.v;
+  for (let i = 0; i < pts.length - 1; i++){
+    const a = pts[i], b = pts[i + 1];
+    if (x >= a.t && x <= b.t){
+      const span = (b.t - a.t) || 1;
+      return a.v + (b.v - a.v) * ((x - a.t) / span);
+    }
+  }
+  return lastP.v;
+}

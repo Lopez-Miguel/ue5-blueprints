@@ -11,7 +11,7 @@
 //   isEvent : punto de entrada     latent : nodo latente (usa el scheduler)
 //   variableNode : muestra un desplegable para elegir la variable
 
-import { num } from './util.js';
+import { num, clamp, sampleCurve } from './util.js';
 import { getVar } from './state.js';
 
 const vtype = n => { const v = getVar(n.props.varId); return v ? v.type : 'float'; };
@@ -102,6 +102,32 @@ export const T = {
     // Programa el disparo diferido; 'completed' lo lanza el scheduler.
     run:(n, ctx, gi) => { ctx.schedule(n.id, gi('dur')); } },
 
+  timeline:{ title:'Timeline', cat:'flow', ic:'⟋', timelineNode:true,
+    inputs:[{ name:'play', kind:'exec', label:'Play' },
+            { name:'stop', kind:'exec', label:'Stop' }],
+    outputs:[{ name:'update',   kind:'exec', label:'Update' },
+             { name:'finished', kind:'exec', label:'Finished' },
+             { name:'value', kind:'data', type:'float', label:'Value' },
+             { name:'alpha', kind:'data', type:'float', label:'Alpha' }],
+    props:[{ name:'length', type:'float', label:'Length', default:2 },
+           { name:'loop',   type:'bool',  label:'Loop',   default:false }],
+    // Play = reproducir desde el inicio; Stop = pausar. El avance por frame y
+    // los disparos de Update/Finished los maneja stepTimelines() en el intérprete.
+    run:(n, ctx, gi, fire, inPin) => {
+      if (inPin === 'stop'){
+        const s = ctx.timelines.get(n.id);
+        if (s) s.playing = false;
+      } else {
+        ctx.timelines.set(n.id, { t:0, playing:true });
+      }
+    },
+    readData:(n, ctx, pin) => {
+      const s = ctx.timelines.get(n.id);
+      const len = Math.max(0.0001, num(n.props.length));
+      const a = s ? clamp(s.t / len, 0, 1) : 0;
+      return pin === 'alpha' ? a : sampleCurve(n.props.curve, a);
+    } },
+
   /* ---------------- variables ---------------- */
   var_get:{ title:'Get', cat:'var', ic:'◧', variableNode:true,
     inputs:[],
@@ -161,7 +187,7 @@ export const T = {
 export const PALETTE = [
   ['Eventos',  ['event_begin', 'event_tick']],
   ['Acciones', ['print_string', 'add_rotation', 'set_rotation', 'set_location', 'add_offset', 'set_scale']],
-  ['Flujo',    ['branch', 'sequence', 'forloop', 'delay']],
+  ['Flujo',    ['branch', 'sequence', 'forloop', 'delay', 'timeline']],
   ['Variables',['var_get', 'var_set']],
   ['Puros',    ['lit_float', 'math_add', 'math_mul', 'cmp_gt', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
 ];

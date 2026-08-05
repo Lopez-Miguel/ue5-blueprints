@@ -1,7 +1,7 @@
 // runtime.js — bucle de simulación, escenario (Actor) y consola.
 
-import { ctx, fireEvent, stepScheduler, resetScheduler, initVars } from './interpreter.js';
-import { updateWires } from './render.js';
+import { ctx, fireEvent, stepScheduler, stepTimelines, resetScheduler, initVars } from './interpreter.js';
+import { updateWires, renderTimelineHeads } from './render.js';
 import { $ } from './util.js';
 
 let playing = false, raf = null, last = 0;
@@ -42,8 +42,10 @@ function loop(t){
   last = t;
   ctx.time += dt; ctx.dt = dt;
   stepScheduler(dt);
+  stepTimelines(dt);
   fireEvent('event_tick');
   renderActor();
+  renderTimelineHeads();
   raf = requestAnimationFrame(loop);
 }
 
