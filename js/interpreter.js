@@ -8,7 +8,7 @@
 
 import { G, getNode, inputDef, dataWireInto } from './state.js';
 import { T } from './nodeTypes.js';
-import { coerce } from './util.js';
+import { coerce, num } from './util.js';
 
 const MAX_STEPS = 200000;   // cortafuegos anti-cuelgue para bucles/recursión
 let steps = 0;
@@ -19,6 +19,10 @@ export const ctx = {
   time: 0,
   dt: 0,
   vars: {},                 // { varId: valor }
+  timelines: new Map(),     // nodeId -> { t, playing }
+  heat: {},                 // nodeId -> 0..1 (brillo de ejecución, decae por frame)
+  wireHeat: {},             // wireId -> 0..1 (cable recorrido, decae por frame)
+  trace: [],                // pasos del último disparo: { id, title, inPin, values }
   log: () => {},            // lo asigna runtime.js (consola)
   schedule(id, dur){
     if (!scheduler.some(s => s.node === id)) scheduler.push({ node:id, remaining: Math.max(0, dur) });
@@ -26,7 +30,7 @@ export const ctx = {
   overBudget: () => steps > MAX_STEPS,
 };
 
-export function resetScheduler(){ scheduler.length = 0; }
+export function resetScheduler(){ scheduler.length = 0; ctx.timelines.clear(); }
 
 export function initVars(){
   ctx.vars = {};
@@ -56,14 +60,21 @@ export function mkGetIn(nodeId){
 /* -------- ejecución de flujo (push) -------- */
 function fire(nodeId, out){
   const w = G.wires.find(x => x.kind === 'exec' && x.from.node === nodeId && x.from.pin === out);
-  if (w) runNode(w.to.node);
+  if (w){ ctx.wireHeat[w.id] = 1; runNode(w.to.node, w.to.pin); }
 }
 
-export function runNode(id){
+// inPin = nombre del pin de ejecución por el que se entró (por defecto 'exec').
+// Casi todos los nodos lo ignoran; Timeline lo usa para distinguir Play de Stop.
+export function runNode(id, inPin = 'exec'){
   if (steps++ > MAX_STEPS) return;
   const n = getNode(id), t = T[n.type];
   if (!t || !t.run) return;
-  t.run(n, ctx, mkGetIn(id), (out) => fire(id, out));
+  ctx.heat[id] = 1;
+  // getIn instrumentado: registra qué valores leyó este nodo (para la traza).
+  const base = mkGetIn(id), values = {};
+  const gi = (pin) => { const v = base(pin); values[pin] = v; return v; };
+  ctx.trace.push({ id, title: n.props.title || t.title, inPin, values });
+  t.run(n, ctx, gi, (out) => fire(id, out), inPin);
 }
 
 // Dispara un evento por su tipo (event_begin / event_tick).
@@ -71,7 +82,29 @@ export function fireEvent(type){
   const ev = G.nodes.find(n => n.type === type);
   if (!ev) return;
   steps = 0;
+  ctx.trace = [];
+  ctx.heat[ev.id] = 1;
+  ctx.trace.push({ id: ev.id, title: ev.props.title || T[ev.type].title, inPin: '(evento)', values: {} });
   fire(ev.id, 'then');
+}
+
+// Limpia todo el estado visual de ejecución (al arrancar Play o al reiniciar).
+export function resetInstrumentation(){ ctx.heat = {}; ctx.wireHeat = {}; ctx.trace = []; }
+
+// Enfría el brillo de nodos y cables (llamar una vez por frame, antes de disparar).
+export function decayHeat(){
+  for (const k in ctx.heat){ ctx.heat[k] *= 0.82; if (ctx.heat[k] < 0.02) delete ctx.heat[k]; }
+  for (const k in ctx.wireHeat){ ctx.wireHeat[k] *= 0.82; if (ctx.wireHeat[k] < 0.02) delete ctx.wireHeat[k]; }
+}
+
+// Valor actual de un pin de salida de dato (para los "watch values"). Sin efectos.
+export function outputValue(node, pin){
+  const t = T[node.type];
+  try {
+    if (t.eval)     return t.eval(node, mkGetIn(node.id), ctx)[pin];
+    if (t.readData) return t.readData(node, ctx, pin);
+  } catch (e) {}
+  return undefined;
 }
 
 // Avanza los nodos latentes; los que llegan a 0 disparan su salida 'completed'.
@@ -80,4 +113,22 @@ export function stepScheduler(dt){
   const done = scheduler.filter(s => s.remaining <= 0);
   for (const s of done) scheduler.splice(scheduler.indexOf(s), 1);
   for (const s of done){ steps = 0; fire(s.node, 'completed'); }
+}
+
+// Avanza cada Timeline en reproducción; dispara 'update' por frame y 'finished' al terminar.
+export function stepTimelines(dt){
+  for (const [id, s] of ctx.timelines){
+    if (!s.playing) continue;
+    const n = getNode(id);
+    if (!n){ ctx.timelines.delete(id); continue; }
+    const len = Math.max(0.0001, num(n.props.length));
+    s.t += dt;
+    let finished = false;
+    if (s.t >= len){
+      if (n.props.loop) s.t = s.t % len;
+      else { s.t = len; s.playing = false; finished = true; }
+    }
+    steps = 0; fire(id, 'update');
+    if (finished){ steps = 0; fire(id, 'finished'); }
+  }
 }

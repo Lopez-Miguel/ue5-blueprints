@@ -1,9 +1,11 @@
 // render.js — todo lo visual del grafo: nodos, pines, editores y cables.
 
 import { G, getNode, getInputs, getOutputs, dataWireInto, pinPos, LAY, pruneBadWires } from './state.js';
-import { T, CAT_COLOR } from './nodeTypes.js';
-import { PC } from './util.js';
+import { T, CAT_COLOR, DESC } from './nodeTypes.js';
+import { PC, num, clamp } from './util.js';
 import { isPlaying } from './runtime.js';
+import { markDirty } from './storage.js';
+import { ctx, outputValue } from './interpreter.js';
 
 // El DOM ya existe cuando corre un <script type="module"> (es diferido).
 export const refs = {
@@ -12,6 +14,7 @@ export const refs = {
   worldEl:  document.querySelector('#world'),
   wiresEl:  document.querySelector('#wires'),
   tempWire: document.querySelector('#tempwire'),
+  trace:    document.querySelector('#trace'),
 };
 
 export function applyWorld(){
@@ -36,15 +39,19 @@ export function applySelection(){
 
 function buildNode(n){
   const t = T[n.type];
+  const cat = n.props.cat || t.cat;
+  const title = n.props.title || t.title;
   const el = document.createElement('div');
-  el.className = 'node ' + t.cat + (G.sel?.kind === 'node' && G.sel.id === n.id ? ' sel' : '');
+  el.className = 'node ' + cat + (t.imported ? ' imported' : '') +
+    (G.sel?.kind === 'node' && G.sel.id === n.id ? ' sel' : '');
   el.dataset.id = n.id;
   el.style.left = n.x + 'px';
   el.style.top  = n.y + 'px';
 
   const head = document.createElement('div');
   head.className = 'node-header';
-  head.innerHTML = `<span class="ic">${t.ic || ''}</span>${t.title}`;
+  head.title = DESC[n.type] || '';
+  head.innerHTML = `<span class="ic">${t.ic || ''}</span>${title}`;
   el.appendChild(head);
 
   const rows = document.createElement('div');
@@ -72,10 +79,19 @@ function buildNode(n){
       lbl.textContent = out.label ?? out.name;
       lbl.style.marginLeft = 'auto';
       row.appendChild(lbl);
+      if (out.kind !== 'exec'){
+        const w = document.createElement('span');
+        w.className = 'watch';
+        w.dataset.pin = out.name;
+        row.appendChild(w);
+      }
       row.appendChild(pinEl(n.id, out, 'right'));
     }
     rows.appendChild(row);
   }
+
+  // Timeline: editor de curva (después de las filas de pines, no afecta posiciones).
+  if (t.timelineNode) rows.appendChild(curveEditor(n));
 
   // Nodos de variable: desplegable para elegir la variable (fila SIN pin,
   // renderizada DESPUÉS de las filas de pines para no correr las posiciones).
@@ -86,6 +102,7 @@ function buildNode(n){
     if (n.props[p.name] === undefined) n.props[p.name] = p.default;
     const pr = document.createElement('div');
     pr.className = 'prop';
+    if (p.label){ const l = document.createElement('span'); l.className = 'lbl'; l.textContent = p.label; pr.appendChild(l); }
     pr.appendChild(editorEl(n, p, true));
     rows.appendChild(pr);
   }
@@ -168,6 +185,7 @@ function varSelectRow(n){
 /* -------------------- cables -------------------- */
 const SVGNS = 'http://www.w3.org/2000/svg';
 const mkPath = () => document.createElementNS(SVGNS, 'path');
+const TLW = 176, TLH = 92;   // dimensiones internas del editor de curva
 
 function wirePath(a, b){
   const dx = Math.max(40, Math.abs(b.x - a.x) * 0.5);
@@ -176,7 +194,6 @@ function wirePath(a, b){
 
 export function updateWires(){
   [...refs.wiresEl.querySelectorAll('path.wire')].forEach(e => e.remove());
-  const playing = isPlaying();
   for (const w of G.wires){
     const a = pinPos(w.from.node, w.from.pin, 'out');
     const b = pinPos(w.to.node,   w.to.pin,   'in');
@@ -193,15 +210,174 @@ export function updateWires(){
 
     const vis = mkPath();
     vis.setAttribute('d', wirePath(a, b));
-    vis.setAttribute('class', 'wire ' + (w.kind === 'exec' ? 'exec' : 'data') +
-      (playing && w.kind === 'exec' ? ' flowing' : ''));
+    vis.setAttribute('class', 'wire ' + (w.kind === 'exec' ? 'exec' : 'data'));
     vis.setAttribute('stroke', col);
     vis.setAttribute('stroke-width', selected ? '4.5' : '3');
     vis.setAttribute('fill', 'none');
     vis.setAttribute('stroke-linecap', 'round');
     vis.style.opacity = selected ? '1' : '.9';
+    vis.dataset.id = w.id;
+    vis.dataset.kind = w.kind;
 
     refs.wiresEl.appendChild(hit);
     refs.wiresEl.appendChild(vis);
   }
+}
+
+/* -------------------- editor de curva del Timeline -------------------- */
+function mkLine(x1, y1, x2, y2){
+  const l = document.createElementNS(SVGNS, 'line');
+  l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+  l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+  return l;
+}
+
+function curveEditor(n){
+  const pts = (n.props.curve ||= [{ t:0, v:0 }, { t:1, v:1 }]);  // por defecto: rampa 0→1
+  const box = document.createElement('div');
+  box.className = 'tl-curve';
+
+  const svg = document.createElementNS(SVGNS, 'svg');
+  svg.setAttribute('class', 'tl-svg');
+  svg.setAttribute('viewBox', `0 0 ${TLW} ${TLH}`);
+
+  for (let i = 0; i <= 4; i++){
+    const gx = mkLine(i / 4 * TLW, 0, i / 4 * TLW, TLH); gx.setAttribute('class', 'tl-grid'); svg.appendChild(gx);
+    const gy = mkLine(0, i / 4 * TLH, TLW, i / 4 * TLH); gy.setAttribute('class', 'tl-grid'); svg.appendChild(gy);
+  }
+
+  const area = document.createElementNS(SVGNS, 'path');     area.setAttribute('class', 'tl-area'); svg.appendChild(area);
+  const line = document.createElementNS(SVGNS, 'polyline'); line.setAttribute('class', 'tl-line'); svg.appendChild(line);
+  const head = mkLine(0, 0, 0, TLH); head.setAttribute('class', 'tl-head'); head.style.opacity = '0'; svg.appendChild(head);
+  const ptsG = document.createElementNS(SVGNS, 'g'); svg.appendChild(ptsG);
+
+  const X = t => t * TLW, Y = v => TLH - v * TLH;
+  function redraw(){
+    const sorted = [...pts].sort((a, b) => a.t - b.t);
+    line.setAttribute('points', sorted.map(p => `${X(p.t)},${Y(p.v)}`).join(' '));
+    area.setAttribute('d', sorted.length
+      ? `M ${X(sorted[0].t)} ${TLH} L ` + sorted.map(p => `${X(p.t)} ${Y(p.v)}`).join(' L ') +
+        ` L ${X(sorted[sorted.length - 1].t)} ${TLH} Z`
+      : '');
+    ptsG.innerHTML = '';
+    pts.forEach((p, i) => {
+      const c = document.createElementNS(SVGNS, 'circle');
+      c.setAttribute('class', 'tl-pt');
+      c.setAttribute('cx', X(p.t)); c.setAttribute('cy', Y(p.v)); c.setAttribute('r', '4');
+      c.dataset.i = i;
+      ptsG.appendChild(c);
+    });
+  }
+  redraw();
+
+  svg.addEventListener('pointerdown', e => {
+    e.stopPropagation();   // no arrastrar el nodo ni iniciar un cable
+    const r = svg.getBoundingClientRect();
+    const toC = (cx, cy) => ({ t: clamp((cx - r.left) / r.width, 0, 1), v: clamp(1 - (cy - r.top) / r.height, 0, 1) });
+    const target = e.target.closest('.tl-pt');
+    if (target){
+      const i = +target.dataset.i;   // sin ordenar durante el arrastre: el índice se mantiene
+      const move = ev => { const c = toC(ev.clientX, ev.clientY); pts[i] = c; redraw(); };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        pts.sort((a, b) => a.t - b.t); redraw(); markDirty();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    } else {
+      pts.push(toC(e.clientX, e.clientY));
+      pts.sort((a, b) => a.t - b.t); redraw(); markDirty();
+    }
+  });
+  svg.addEventListener('dblclick', e => {
+    e.stopPropagation();
+    const target = e.target.closest('.tl-pt');
+    if (target && pts.length > 2){ pts.splice(+target.dataset.i, 1); redraw(); markDirty(); }
+  });
+
+  box.appendChild(svg);
+  return box;
+}
+
+// Mueve el cabezal (línea vertical) de cada Timeline según su reproducción actual.
+export function renderTimelineHeads(){
+  for (const el of refs.worldEl.querySelectorAll('.node')){
+    const head = el.querySelector('.tl-head');
+    if (!head) continue;
+    const s = ctx.timelines.get(el.dataset.id);
+    if (s){
+      const n = getNode(el.dataset.id);
+      const a = clamp(s.t / Math.max(0.0001, num(n.props.length)), 0, 1);
+      head.setAttribute('x1', a * TLW); head.setAttribute('x2', a * TLW);
+      head.style.opacity = s.playing ? '1' : '.35';
+    } else {
+      head.style.opacity = '0';
+    }
+  }
+}
+
+/* -------------------- visualizaciones de aprendizaje -------------------- */
+function fmt(v){
+  if (v == null) return '';
+  if (typeof v === 'number')  return Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2);
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  const s = String(v);
+  return s.length > 9 ? s.slice(0, 8) + '…' : s;
+}
+
+// Brillo de los nodos que se están ejecutando (lee ctx.heat).
+export function renderExecHeat(){
+  for (const el of refs.worldEl.querySelectorAll('.node'))
+    el.style.setProperty('--heat', (ctx.heat[el.dataset.id] || 0).toFixed(3));
+}
+
+// Anima el "flujo" sólo en los cables de ejecución realmente recorridos.
+export function renderWireHeat(){
+  for (const p of refs.wiresEl.querySelectorAll('path.wire')){
+    if (p.dataset.kind !== 'exec') continue;
+    p.classList.toggle('flowing', (ctx.wireHeat[p.dataset.id] || 0) > 0.05);
+  }
+}
+
+// Muestra el valor actual de cada pin de dato de salida (watch values).
+export function renderWatchValues(){
+  for (const el of refs.worldEl.querySelectorAll('.node')){
+    const spans = el.querySelectorAll('.watch');
+    if (!spans.length) continue;
+    const n = getNode(el.dataset.id);
+    if (!n) continue;
+    for (const span of spans) span.textContent = fmt(outputValue(n, span.dataset.pin));
+  }
+}
+
+// Panel de traza: secuencia de nodos ejecutados y valores leídos (throttle ~120ms).
+let _lastTrace = 0;
+export function renderTrace(force){
+  const host = refs.trace;
+  if (!host) return;
+  const now = performance.now();
+  if (!force && now - _lastTrace < 120) return;
+  _lastTrace = now;
+  if (!ctx.trace.length){ host.innerHTML = '<div class="empty">La traza aparece al ejecutar.</div>'; return; }
+  host.innerHTML = '';
+  ctx.trace.forEach((s, i) => {
+    const vals = Object.entries(s.values).map(([k, v]) => `${k}=${fmt(v)}`).join('  ');
+    const d = document.createElement('div');
+    d.className = 'trace-step';
+    d.innerHTML = `<span class="n">${i + 1}</span><span class="ti"></span><span class="vv"></span>`;
+    d.querySelector('.ti').textContent = s.title;
+    d.querySelector('.vv').textContent = vals;
+    host.appendChild(d);
+  });
+}
+
+// Apaga todo el resaltado de aprendizaje (al reiniciar).
+export function clearLearning(){
+  for (const el of refs.worldEl.querySelectorAll('.node')){
+    el.style.setProperty('--heat', '0');
+    el.querySelectorAll('.watch').forEach(w => w.textContent = '');
+  }
+  for (const p of refs.wiresEl.querySelectorAll('path.wire')) p.classList.remove('flowing');
+  renderTrace(true);
 }
