@@ -16,8 +16,14 @@ html,body{margin:0;height:100%;background:var(--panel-2);color:var(--ink);
   font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow:hidden}
 button{font-family:var(--sans)}
 
-.app{display:grid;grid-template-columns:180px 1fr 300px;grid-template-rows:48px 1fr;
-  height:100vh;width:100vw}
+.app{display:grid;grid-template-columns:var(--left-w,180px) 1fr var(--right-w,300px);
+  grid-template-rows:48px 1fr;height:100vh;width:100vw;position:relative}
+
+/* manijas de redimensionado (en el borde de cada columna) */
+.resizer{position:absolute;top:48px;bottom:0;width:9px;z-index:20;cursor:col-resize;transform:translateX(-50%)}
+.resizer:hover,.resizer.active{background:#39c6c633}
+#resizeL{left:var(--left-w,180px)}
+#resizeR{left:auto;right:var(--right-w,300px);transform:translateX(50%)}
 
 /* ---- barra superior ---- */
 .bar{grid-column:1/4;display:flex;align-items:center;gap:10px;padding:0 16px;
@@ -68,17 +74,20 @@ button{font-family:var(--sans)}
 
 /* ---- panel de variables ---- */
 #varpanel{margin-top:auto;border-top:1px solid var(--line);padding-top:10px}
-.var-row{display:grid;grid-template-columns:1fr 56px 20px;gap:5px;margin-bottom:6px;align-items:center}
-.var-row input,.var-row select{background:#141418;border:1px solid var(--line);color:var(--ink);
-  border-radius:5px;font-size:11px;padding:4px 6px;font-family:var(--mono);width:100%}
-.var-row .chip{width:9px;height:9px;border-radius:50%;flex:none}
-.var-name{display:flex;align-items:center;gap:6px}
-.var-def{margin-top:3px}
-.var-def input{background:#141418;border:1px solid var(--line);color:var(--ink);
-  border-radius:5px;font-size:11px;padding:4px 6px;font-family:var(--mono);width:100%}
-.var-del{background:none;border:none;color:var(--muted-2);cursor:pointer;font-size:15px;line-height:1;padding:0}
+.var-block{border:1px solid var(--line);border-radius:7px;padding:8px;margin-bottom:7px;background:#1c1c22}
+.var-top{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.var-top .chip{width:9px;height:9px;border-radius:50%;flex:none}
+.var-top .var-name-input{flex:1;min-width:0;background:#141418;border:1px solid var(--line);color:var(--ink);
+  border-radius:5px;font-size:12px;padding:5px 7px;font-family:var(--mono)}
+.var-top .var-name-input:focus{outline:none;border-color:var(--accent)}
+.var-del{background:none;border:none;color:var(--muted-2);cursor:pointer;font-size:16px;line-height:1;padding:0 2px;flex:none}
 .var-del:hover{color:var(--bool)}
-.var-block{border:1px solid var(--line);border-radius:7px;padding:7px;margin-bottom:7px;background:#1c1c22}
+.var-bot{display:flex;gap:6px}
+.var-bot select{flex:none;width:78px;background:#141418;border:1px solid var(--line);color:var(--ink);
+  border-radius:5px;font-size:11px;padding:4px 6px;font-family:var(--mono);cursor:pointer}
+.var-bot .var-def-input{flex:1;min-width:0;background:#141418;border:1px solid var(--line);color:var(--ink);
+  border-radius:5px;font-size:11px;padding:4px 6px;font-family:var(--mono)}
+.var-bot .var-def-chk{width:16px;height:16px;accent-color:var(--accent);align-self:center}
 .addvar{width:100%;background:transparent;border:1px dashed var(--line);color:var(--muted);
   padding:7px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer}
 .addvar:hover{border-color:var(--accent);color:var(--accent)}
@@ -242,3 +251,10 @@ path.exec.flowing{stroke-dasharray:5 9;animation:flow .55s linear infinite}
 .lesson-card:hover{background:#31313a;border-color:var(--accent)}
 .lesson-card .t{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:3px}
 .lesson-card .c{font-size:11.5px;color:var(--muted);line-height:1.45}
+.lesson-lvl{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted-2);font-weight:700;margin:10px 2px 1px}
+.lesson-lvl:first-child{margin-top:0}
+.lc-badge{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  padding:1px 6px;border-radius:10px;background:#33333d;color:var(--muted);margin-left:6px;vertical-align:middle}
+.lc-badge.done{background:#1e3a1e;color:var(--float)}
+.lesson-check .solve{background:transparent;border:1px solid var(--line);color:var(--muted)}
+.lesson-check .solve:hover{background:#2c2c34;color:var(--ink)}

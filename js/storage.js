@@ -4,6 +4,8 @@ import { serialize, deserialize } from './state.js';
 import { download } from './util.js';
 
 const KEY = 'bpsim.v1';
+const PKEY = 'bpsim.progress';
+const LKEY = 'bpsim.layout';
 let timer = null;
 
 // Guardado diferido: se llama en cada cambio, escribe tras una pausa breve.
@@ -24,3 +26,11 @@ export function importFile(file, done){
   r.onerror = () => done?.(false, r.error);
   r.readAsText(file);
 }
+
+/* --------- progreso de ejercicios --------- */
+export function getProgress(){ try { return JSON.parse(localStorage.getItem(PKEY)) || {}; } catch (e) { return {}; } }
+export function markComplete(id){ try { const p = getProgress(); p[id] = true; localStorage.setItem(PKEY, JSON.stringify(p)); } catch (e) {} }
+
+/* --------- tamaños de paneles --------- */
+export function loadLayout(){ try { return JSON.parse(localStorage.getItem(LKEY)) || {}; } catch (e) { return {}; } }
+export function saveLayout(obj){ try { localStorage.setItem(LKEY, JSON.stringify(obj)); } catch (e) {} }

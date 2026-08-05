@@ -87,7 +87,7 @@ export function buildGraph(spec){
   G.variables = (spec.vars || []).map(v => ({ id:uid('v'), name:v.name, type:v.type || 'float', def:v.def ?? 0 }));
   const vid = Object.fromEntries(G.variables.map(v => [v.name, v.id]));
 
-  const N = (spec.nodes || []).map(nd => {
+  G.nodes = (spec.nodes || []).map(nd => {
     const t = T[nd.k];
     const n = { id:uid(), type:nd.k, x:nd.x || 0, y:nd.y || 0, props:{} };
     const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
@@ -98,14 +98,22 @@ export function buildGraph(spec){
     return n;
   });
 
-  const W = (spec.links || []).map(([fi, fp, ti, tp]) => {
-    const from = N[fi], to = N[ti];
-    const outs = typeof T[from.type].outputs === 'function' ? T[from.type].outputs(from) : (T[from.type].outputs || []);
+  G.wires = [];
+  G.sel = null;
+  G.world = spec.world || { x:60, y:40, k:1 };
+  linkByIndex(spec.links || []);
+}
+
+// Crea cables a partir de pares [fromIdx, 'pinSalida', toIdx, 'pinEntrada'] sobre
+// los nodos actuales (mismo orden que spec.nodes). Reutilizado por "Resolver".
+export function linkByIndex(links){
+  for (const [fi, fp, ti, tp] of links){
+    const from = G.nodes[fi], to = G.nodes[ti];
+    if (!from || !to) continue;
+    const outs = getOutputs(from);
     const od = outs.find(o => o.name === fp);
     const kind = od && od.kind === 'exec' ? 'exec' : 'data';
-    return { id:uid('w'), kind, type: kind === 'exec' ? 'exec' : (od ? od.type : 'float'),
-             from:{ node:from.id, pin:fp }, to:{ node:to.id, pin:tp } };
-  });
-
-  G.nodes = N; G.wires = W; G.sel = null; G.world = spec.world || { x:60, y:40, k:1 };
+    G.wires.push({ id:uid('w'), kind, type: kind === 'exec' ? 'exec' : (od ? od.type : 'float'),
+                   from:{ node:from.id, pin:fp }, to:{ node:to.id, pin:tp } });
+  }
 }

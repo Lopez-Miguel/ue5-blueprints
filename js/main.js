@@ -1,12 +1,12 @@
 // main.js — punto de entrada: arma la UI y arranca todo.
 
-import { buildGraph } from './state.js';
+import { buildGraph, linkByIndex } from './state.js';
 import { T, PALETTE, CAT_COLOR, DESC } from './nodeTypes.js';
 import { renderNodes, applyWorld, clearLearning } from './render.js';
 import { addNode, initInteraction } from './interaction.js';
 import { renderActor, clearLog, bindRuntimeUI, buildStageGrid, stop, runHeadless } from './runtime.js';
 import { buildVarPanel } from './variables.js';
-import { loadLocal, exportFile, importFile, markDirty } from './storage.js';
+import { loadLocal, exportFile, importFile, markDirty, getProgress, markComplete, loadLayout, saveLayout } from './storage.js';
 import { importUE } from './interop.js';
 import { LESSONS } from './lessons.js';
 import { ctx, resetInstrumentation } from './interpreter.js';
@@ -104,8 +104,11 @@ function showLesson(lesson){
     const row = document.createElement('div'); row.className = 'lesson-check';
     const btn = document.createElement('button'); btn.textContent = 'Comprobar';
     btn.onclick = checkExercise;
+    const solve = document.createElement('button'); solve.className = 'solve'; solve.textContent = 'Resolver';
+    solve.onclick = solveExercise;
     const st = document.createElement('span'); st.className = 'lesson-status'; st.id = 'lessonStatus';
-    row.append(btn, st);
+    if (getProgress()[lesson.id]){ st.className = 'lesson-status ok'; st.textContent = '✓ completado'; }
+    row.append(btn, solve, st);
     el.appendChild(row);
   } else if (lesson.task){
     const k = document.createElement('div'); k.className = 'lk'; k.textContent = '🎯 ' + lesson.task;
@@ -119,8 +122,32 @@ function checkExercise(){
   let ok = false;
   try { ok = !!currentLesson.check(cap); } catch (e) { ok = false; }
   const st = $('#lessonStatus');
-  if (ok){ st.className = 'lesson-status ok'; st.textContent = '✓ ¡Correcto!'; }
-  else { st.className = 'lesson-status bad'; st.textContent = '✗ ' + (currentLesson.hint || 'Todavía no. Revisá las conexiones.'); }
+  if (ok){
+    st.className = 'lesson-status ok'; st.textContent = '✓ ¡Correcto!';
+    markComplete(currentLesson.id);
+    buildLessonList();   // refrescar tildes del modal
+  } else {
+    st.className = 'lesson-status bad';
+    st.textContent = '✗ ' + (currentLesson.hint || 'Todavía no. Revisá las conexiones.');
+  }
+}
+
+// Reconstruye el ejercicio y aplica la solución (los cables que faltaban).
+function solveExercise(){
+  if (!currentLesson) return;
+  buildGraph(currentLesson.spec);
+  linkByIndex(currentLesson.solution || []);
+  ctx.actor = { x:0, y:0, rot:0, scale:1 }; ctx.time = 0;
+  resetInstrumentation();
+  buildVarPanel();
+  applyWorld();
+  renderNodes();
+  renderActor();
+  clearLearning();
+  clearLog();
+  markDirty();
+  const st = $('#lessonStatus');
+  if (st){ st.className = 'lesson-status'; st.textContent = 'Solución aplicada — probá Comprobar o Reproducir.'; }
 }
 
 function setStageVisible(v){ document.querySelector('.side').classList.toggle('hide-stage', !v); }
@@ -141,21 +168,83 @@ function loadLesson(lesson, save = true){
   if (save) markDirty();
 }
 
-function bindLessons(){
-  const modal = $('#lessonModal'), list = $('#lessonList');
+const LEVELS = [['basico','Básico'], ['intermedio','Intermedio'], ['avanzado','Avanzado'], ['libre','Libre']];
+
+function buildLessonList(){
+  const list = $('#lessonList');
   list.innerHTML = '';
-  for (const lesson of LESSONS){
-    const card = document.createElement('button');
-    card.className = 'lesson-card';
-    card.innerHTML = `<div class="t"></div><div class="c"></div>`;
-    card.querySelector('.t').textContent = lesson.title;
-    card.querySelector('.c').textContent = lesson.concept;
-    card.onclick = () => { loadLesson(lesson); modal.hidden = true; };
-    list.appendChild(card);
+  const prog = getProgress();
+  for (const [lvl, label] of LEVELS){
+    const items = LESSONS.filter(l => (l.level || 'libre') === lvl);
+    if (!items.length) continue;
+    const h = document.createElement('div'); h.className = 'lesson-lvl'; h.textContent = label;
+    list.appendChild(h);
+    for (const lesson of items){
+      const card = document.createElement('button');
+      card.className = 'lesson-card';
+      const t = document.createElement('div'); t.className = 't'; t.textContent = lesson.title;
+      if (lesson.exercise){
+        const done = !!prog[lesson.id];
+        const badge = document.createElement('span');
+        badge.className = 'lc-badge' + (done ? ' done' : '');
+        badge.textContent = done ? '✓ completado' : 'ejercicio';
+        t.append(' ', badge);
+      }
+      const c = document.createElement('div'); c.className = 'c'; c.textContent = lesson.concept;
+      card.append(t, c);
+      card.onclick = () => { loadLesson(lesson); $('#lessonModal').hidden = true; };
+      list.appendChild(card);
+    }
   }
-  $('#lessons').onclick = () => { modal.hidden = false; };
+}
+
+function bindLessons(){
+  const modal = $('#lessonModal');
+  buildLessonList();
+  $('#lessons').onclick = () => { buildLessonList(); modal.hidden = false; };
   $('#lessonCancel').onclick = () => { modal.hidden = true; };
   modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+}
+
+/* -------- redimensionar los paneles laterales -------- */
+function bindResizers(){
+  const app = document.querySelector('.app');
+  const saved = loadLayout();
+  if (saved.left)  app.style.setProperty('--left-w',  saved.left  + 'px');
+  if (saved.right) app.style.setProperty('--right-w', saved.right + 'px');
+
+  const setup = (handle, varName, side, min, max) => {
+    let start = null;
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const cur = parseFloat(getComputedStyle(app).getPropertyValue(varName)) || (side === 'left' ? 180 : 300);
+      start = { x:e.clientX, w:cur };
+      handle.classList.add('active');
+      handle.setPointerCapture(e.pointerId);
+    });
+    handle.addEventListener('pointermove', e => {
+      if (!start) return;
+      const dx = e.clientX - start.x;
+      let w = side === 'left' ? start.w + dx : start.w - dx;
+      w = Math.max(min, Math.min(max, w));
+      app.style.setProperty(varName, w + 'px');
+    });
+    const end = e => {
+      if (!start) return;
+      start = null;
+      handle.classList.remove('active');
+      try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+      saveLayout({
+        left:  parseFloat(getComputedStyle(app).getPropertyValue('--left-w'))  || 180,
+        right: parseFloat(getComputedStyle(app).getPropertyValue('--right-w')) || 300,
+      });
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  };
+
+  setup($('#resizeL'), '--left-w',  'left',  150, 420);
+  setup($('#resizeR'), '--right-w', 'right', 240, 560);
 }
 
 function bindStageToggle(){
@@ -218,6 +307,7 @@ bindUEModal();
 bindHelp();
 bindLessons();
 bindStageToggle();
+bindResizers();
 
 if (loadLocal()){
   // Recupera el último trabajo guardado.
