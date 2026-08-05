@@ -79,6 +79,25 @@ export const LESSONS = [
     },
   },
   {
+    id:'autocast', level:'intermedio',
+    title:'Conversión automática (autocast)',
+    concept:'Cuando conectás un dato de un tipo a un pin de otro tipo, se inserta solo un nodo de ' +
+            'conversión. Acá el número (float) de una variable va a Print String, que espera texto: ' +
+            'el nodo To String hace la conversión.',
+    task:'Reproducí para ver el número en la consola. Probá: borrá el nodo To String y volvé a conectar Get Puntaje con Print String — aparece de nuevo solo.',
+    usesStage:false,
+    spec:{
+      vars:[ { name:'Puntaje', type:'float', def:42 } ],
+      nodes:[
+        { k:'event_begin',  x:40,  y:70 },
+        { k:'var_get',      x:40,  y:250, var:'Puntaje' },
+        { k:'to_string',    x:330, y:250, props:{ from:'float' } },
+        { k:'print_string', x:600, y:70 },
+      ],
+      links:[ [0,'then',3,'exec'], [1,'value',2,'in'], [2,'out',3,'in'] ],
+    },
+  },
+  {
     id:'branch', level:'intermedio',
     title:'Branch (decisiones)',
     concept:'Branch elige el camino según una condición booleana: sigue por True o por False. ' +
