@@ -56,7 +56,9 @@ export function pruneBadWires(){
     const tt = pinType(tn, w.to.pin, 'in');
     if (ft == null || tt == null) return false;
     if (w.kind === 'exec') return ft === 'exec' && tt === 'exec';
-    return ft === tt;
+    if (ft === tt) return true;
+    const numeric = t => t === 'int' || t === 'float';
+    return numeric(ft) && numeric(tt);   // int/float son intercambiables
   });
 }
 

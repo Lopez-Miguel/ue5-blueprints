@@ -106,9 +106,12 @@ function showLesson(lesson){
     btn.onclick = checkExercise;
     const solve = document.createElement('button'); solve.className = 'solve'; solve.textContent = 'Resolver';
     solve.onclick = solveExercise;
+    const reset = document.createElement('button'); reset.className = 'solve'; reset.textContent = 'Reiniciar';
+    reset.title = 'Volver al estado inicial del ejercicio';
+    reset.onclick = resetExercise;
     const st = document.createElement('span'); st.className = 'lesson-status'; st.id = 'lessonStatus';
     if (getProgress()[lesson.id]){ st.className = 'lesson-status ok'; st.textContent = '✓ completado'; }
-    row.append(btn, solve, st);
+    row.append(btn, solve, reset, st);
     el.appendChild(row);
   } else if (lesson.task){
     const k = document.createElement('div'); k.className = 'lk'; k.textContent = '🎯 ' + lesson.task;
@@ -150,6 +153,11 @@ function solveExercise(){
   if (st){ st.className = 'lesson-status'; st.textContent = 'Solución aplicada — probá Comprobar o Reproducir.'; }
 }
 
+// Vuelve el ejercicio a su estado inicial (sin la solución).
+function resetExercise(){
+  if (currentLesson) loadLesson(currentLesson);
+}
+
 function setStageVisible(v){ document.querySelector('.side').classList.toggle('hide-stage', !v); }
 
 function loadLesson(lesson, save = true){
@@ -174,6 +182,7 @@ function buildLessonList(){
   const list = $('#lessonList');
   list.innerHTML = '';
   const prog = getProgress();
+  const next = LESSONS.find(l => l.exercise && !prog[l.id]);   // próximo ejercicio pendiente
   for (const [lvl, label] of LEVELS){
     const items = LESSONS.filter(l => (l.level || 'libre') === lvl);
     if (!items.length) continue;
@@ -185,9 +194,11 @@ function buildLessonList(){
       const t = document.createElement('div'); t.className = 't'; t.textContent = lesson.title;
       if (lesson.exercise){
         const done = !!prog[lesson.id];
+        const isNext = next && lesson.id === next.id;
+        if (isNext) card.classList.add('next');
         const badge = document.createElement('span');
-        badge.className = 'lc-badge' + (done ? ' done' : '');
-        badge.textContent = done ? '✓ completado' : 'ejercicio';
+        badge.className = 'lc-badge' + (done ? ' done' : isNext ? ' next' : '');
+        badge.textContent = done ? '✓ completado' : isNext ? '▶ empezá acá' : 'ejercicio';
         t.append(' ', badge);
       }
       const c = document.createElement('div'); c.className = 'c'; c.textContent = lesson.concept;
@@ -301,10 +312,10 @@ function bindUEModal(){
     const res = importUE(text.value);
     if (res.error){ msg.textContent = res.error; return; }
     showLesson(null); setStageVisible(true);
-    renderNodes(); markDirty();
-    const w = res.warnings.length ? ` (${res.warnings.length} avisos)` : '';
-    msg.textContent = `Importados ${res.count} nodos y ${res.wireCount} conexiones${w}.`;
-    setTimeout(close, 900);
+    buildVarPanel(); renderNodes(); markDirty();
+    const w = res.warnings.length ? ` · ${res.warnings.length} avisos` : '';
+    msg.textContent = `Importados ${res.count} nodos (${res.mapped} ejecutables), ${res.wireCount} conexiones${w}.`;
+    setTimeout(close, 1100);
   };
 }
 

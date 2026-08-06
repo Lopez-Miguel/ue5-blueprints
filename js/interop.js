@@ -11,6 +11,7 @@
 
 import { G } from './state.js';
 import { uid } from './util.js';
+import { T } from './nodeTypes.js';
 
 // PinType.PinCategory de UE -> nuestro tipo de dato.
 const DATA_TYPE = {
@@ -78,6 +79,66 @@ function memberName(body, key){
   return mm ? mm[1] : null;
 }
 
+// Extrae los datos crudos de un pin de UE.
+function parsePin(ps){
+  const pinId = (ps.match(/PinId=([0-9A-Fa-f]+)/) || [])[1];
+  const name  = (ps.match(/PinName="([^"]+)"/) || [])[1];
+  if (!pinId || !name) return null;
+  const hidden = /bHidden=True/.test(ps);
+  const dir = /Direction="EGPD_Output"/.test(ps) ? 'out' : 'in';
+  const category = (ps.match(/PinCategory="([^"]+)"/) || [])[1] || '';
+  const kind = category.toLowerCase() === 'exec' ? 'exec' : 'data';
+  const type = kind === 'exec' ? 'exec' : mapDataType(category);
+  const dv = (ps.match(/(?:^|,)DefaultValue="([^"]*)"/) || [])[1];
+  const links = [];
+  const linked = (ps.match(/LinkedTo=\(([^)]*)\)/) || [])[1];
+  if (linked) for (const e of linked.split(',')){
+    const g = e.trim().split(/\s+/).pop();
+    if (g && /^[0-9A-Fa-f]+$/.test(g)) links.push(g);
+  }
+  return { pinId, name, hidden, dir, category, kind, type, dv, links };
+}
+
+// ¿Este nodo de UE tiene equivalente NATIVO? Devuelve el tipo + cómo renombrar pines.
+function mapNative(short, funcName, varName, evtName){
+  if (evtName === 'ReceiveBeginPlay') return { type:'event_begin', rename:{ then:'then' } };
+  if (evtName === 'ReceiveTick')      return { type:'event_tick', rename:{ then:'then', DeltaSeconds:'dt' } };
+  if (/IfThenElse/.test(short))       return { type:'branch',   rename:{ execute:'exec', Condition:'cond', then:'true', else:'false' } };
+  if (/ExecutionSequence/.test(short))return { type:'sequence', rename:{ execute:'exec', then_0:'t0', then_1:'t1' } };
+  if (/VariableGet/.test(short) && varName) return { type:'var_get', var:true, varName };
+  if (/VariableSet/.test(short) && varName) return { type:'var_set', var:true, varName };
+  if (funcName){
+    if (/^Conv_/.test(funcName)){
+      const to = /ToString$/.test(funcName)         ? 'to_string'
+               : /To(Float|Double)$/.test(funcName) ? 'to_float'
+               : /ToInt/.test(funcName)             ? 'to_int' : null;
+      if (to) return { type:to, conv:true };
+    }
+    if (/^PrintString$/.test(funcName)) return { type:'print_string', rename:{ execute:'exec', then:'then', InString:'in' } };
+    if (/^Add_/.test(funcName))         return { type:'math_add', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^Multiply_/.test(funcName))    return { type:'math_mul', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^Greater_/.test(funcName))     return { type:'cmp_gt',   rename:{ A:'a', B:'b', ReturnValue:'res' } };
+  }
+  return null;
+}
+
+// Renombrado de pines para var_get / var_set (el pin de dato se llama como la variable).
+function varPin(type, varName, ueName, dir){
+  if (type === 'var_get') return (dir === 'out' && ueName === varName) ? 'value' : null;
+  if (dir === 'in'  && ueName === 'execute') return 'exec';
+  if (dir === 'out' && ueName === 'then')    return 'then';
+  if (dir === 'in'  && ueName === varName)   return 'value';
+  return null;
+}
+
+// Inicializa props por defecto de un nodo nativo (inputs editables + props).
+function initNativeProps(n){
+  const t = T[n.type];
+  const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
+  for (const i of ins) if (i.editable) n.props[i.name] = i.default;
+  for (const pr of (t.props || [])) n.props[pr.name] = pr.default;
+}
+
 /* ---------- parser principal ---------- */
 export function parseUEBlueprint(text){
   const warnings = [];
@@ -90,7 +151,14 @@ export function parseUEBlueprint(text){
   const nodes = [];
   const pinMap = {};       // PinId (GUID) -> { node, pin, dir, kind, type }
   const linkPairs = [];    // [guidA, guidB]
+  const importVars = {};   // nombre -> { id, name, type, def }
+  let mapped = 0;
   let minX = Infinity, minY = Infinity;
+
+  const ensureVar = name => {
+    if (!importVars[name]) importVars[name] = { id:uid('v'), name, type:'float', def:0 };
+    return importVars[name].id;
+  };
 
   for (const block of blocks){
     const body = block.body.join('\n');
@@ -105,53 +173,64 @@ export function parseUEBlueprint(text){
     const isPure   = /bIsPureFunc=True/.test(body);
     const posX = +((body.match(/NodePosX=(-?\d+)/) || [])[1] || 0);
     const posY = +((body.match(/NodePosY=(-?\d+)/) || [])[1] || 0);
-
-    // título + color según el tipo de nodo
-    let title, cat = 'act';
-    if (evtName){ title = 'Event ' + prettyEvent(evtName); cat = 'ev'; }
-    else if (custName){ title = 'Event ' + custName; cat = 'ev'; }
-    else if (/VariableGet/.test(short)){ title = 'Get ' + (varName || '?'); cat = 'var'; }
-    else if (/VariableSet/.test(short)){ title = 'Set ' + (varName || '?'); cat = 'var'; }
-    else if (/IfThenElse/.test(short)){ title = 'Branch'; }
-    else if (/ExecutionSequence/.test(short)){ title = 'Sequence'; }
-    else if (funcName){ title = funcName; cat = isPure ? 'pure' : 'act'; }
-    else { title = short.replace(/^K2Node_/, ''); cat = isPure ? 'pure' : 'act'; }
-
+    const pinStrings = extractPinStrings(body);
     const id = uid();
-    const pins = [];
-    const usedName = { in:new Set(), out:new Set() };
-
-    for (const ps of extractPinStrings(body)){
-      const pinId = (ps.match(/PinId=([0-9A-Fa-f]+)/) || [])[1];
-      const rawName = (ps.match(/PinName="([^"]+)"/) || [])[1];
-      if (!pinId || !rawName) continue;
-      if (/bHidden=True/.test(ps)) continue;                 // pines ocultos: no se muestran
-
-      const dir = /Direction="EGPD_Output"/.test(ps) ? 'out' : 'in';
-      const category = (ps.match(/PinCategory="([^"]+)"/) || [])[1] || '';
-      const kind = category.toLowerCase() === 'exec' ? 'exec' : 'data';
-      const type = kind === 'exec' ? 'exec' : mapDataType(category);
-
-      // asegurar nombre único por dirección dentro del nodo
-      let name = rawName, k = 2;
-      while (usedName[dir].has(name)) name = rawName + '_' + (k++);
-      usedName[dir].add(name);
-
-      pins.push({ name, kind, type, label:rawName, dir });
-      pinMap[pinId] = { node:id, pin:name, dir, kind, type };
-
-      const linked = (ps.match(/LinkedTo=\(([^)]*)\)/) || [])[1];
-      if (linked){
-        for (const entry of linked.split(',')){
-          const g = entry.trim().split(/\s+/).pop();
-          if (g && /^[0-9A-Fa-f]+$/.test(g)) linkPairs.push([pinId, g]);
-        }
-      }
-    }
 
     minX = Math.min(minX, posX);
     minY = Math.min(minY, posY);
-    nodes.push({ id, type:'ue_node', _x:posX, _y:posY, props:{ title, cat, pins, ueName } });
+
+    const native = mapNative(short, funcName, varName, evtName);
+
+    if (native){
+      // ---- nodo NATIVO (ejecutable) ----
+      const n = { id, type:native.type, _x:posX, _y:posY, props:{} };
+      if (native.var) n.props.varId = ensureVar(native.varName);
+      initNativeProps(n);
+
+      for (const ps of pinStrings){
+        const p = parsePin(ps); if (!p || p.hidden) continue;
+        let np;
+        if (native.conv){
+          if (p.dir === 'in' && p.kind === 'data'){ np = 'in'; n.props.from = p.type; }
+          else if (p.dir === 'out' && p.name === 'ReturnValue'){ np = 'out'; }
+          else np = null;
+        } else if (native.var){
+          np = varPin(native.type, native.varName, p.name, p.dir);
+        } else {
+          np = native.rename[p.name] || null;
+        }
+        if (!np) continue;
+        if (native.var && np === 'value' && importVars[native.varName])
+          importVars[native.varName].type = (p.kind === 'exec' ? 'float' : p.type);
+        pinMap[p.pinId] = { node:id, pin:np, dir:p.dir, kind:p.kind, type:p.type };
+        if (p.dir === 'in' && p.dv != null && np !== 'exec' && np !== 'in') n.props[np] = p.dv;
+        for (const g of p.links) linkPairs.push([p.pinId, g]);
+      }
+      nodes.push(n);
+      mapped++;
+    } else {
+      // ---- nodo GENÉRICO (sólo visualización) ----
+      let title, cat = 'act';
+      if (evtName){ title = 'Event ' + prettyEvent(evtName); cat = 'ev'; }
+      else if (custName){ title = 'Event ' + custName; cat = 'ev'; }
+      else if (/VariableGet/.test(short)){ title = 'Get ' + (varName || '?'); cat = 'var'; }
+      else if (/VariableSet/.test(short)){ title = 'Set ' + (varName || '?'); cat = 'var'; }
+      else if (funcName){ title = funcName; cat = isPure ? 'pure' : 'act'; }
+      else { title = short.replace(/^K2Node_/, ''); cat = isPure ? 'pure' : 'act'; }
+
+      const pins = [];
+      const usedName = { in:new Set(), out:new Set() };
+      for (const ps of pinStrings){
+        const p = parsePin(ps); if (!p || p.hidden) continue;
+        let name = p.name, k = 2;
+        while (usedName[p.dir].has(name)) name = p.name + '_' + (k++);
+        usedName[p.dir].add(name);
+        pins.push({ name, kind:p.kind, type:p.type, label:p.name, dir:p.dir });
+        pinMap[p.pinId] = { node:id, pin:name, dir:p.dir, kind:p.kind, type:p.type };
+        for (const g of p.links) linkPairs.push([p.pinId, g]);
+      }
+      nodes.push({ id, type:'ue_node', _x:posX, _y:posY, props:{ title, cat, pins, ueName } });
+    }
   }
 
   // posiciones: normalizar al mínimo, compactar un poco y desplazar a la vista
@@ -179,14 +258,15 @@ export function parseUEBlueprint(text){
       from:{ node:out.node, pin:out.pin }, to:{ node:inp.node, pin:inp.pin } });
   }
 
-  return { nodes, wires, warnings };
+  return { nodes, wires, variables:Object.values(importVars), mapped, warnings };
 }
 
 // Parsea y agrega el resultado al grafo actual. Devuelve stats para la UI.
 export function importUE(text){
   const res = parseUEBlueprint(text);
   if (res.error) return res;
+  for (const v of res.variables) G.variables.push(v);
   for (const n of res.nodes) G.nodes.push(n);
   for (const w of res.wires) G.wires.push(w);
-  return { count:res.nodes.length, wireCount:res.wires.length, warnings:res.warnings || [] };
+  return { count:res.nodes.length, wireCount:res.wires.length, mapped:res.mapped, warnings:res.warnings || [] };
 }
