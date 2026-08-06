@@ -198,6 +198,43 @@ export const T = {
     props:[{ name:'value', type:'string', label:'', default:'' }],
     eval:(n) => ({ val: n.props.value == null ? '' : String(n.props.value) }) },
 
+  cmp_le:{ title:'Less/Equal  ≤', cat:'pure', ic:'≤',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') <= gi('b') }) },
+
+  cmp_ge:{ title:'Greater/Equal  ≥', cat:'pure', ic:'≥',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') >= gi('b') }) },
+
+  cmp_ne:{ title:'Not Equal  ≠', cat:'pure', ic:'≠',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') !== gi('b') }) },
+
+  bool_and:{ title:'AND', cat:'pure', ic:'&',
+    inputs:[{ name:'a', kind:'data', type:'bool', label:'A', editable:true, default:false },
+            { name:'b', kind:'data', type:'bool', label:'B', editable:true, default:false }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') && gi('b') }) },
+
+  bool_or:{ title:'OR', cat:'pure', ic:'∥',
+    inputs:[{ name:'a', kind:'data', type:'bool', label:'A', editable:true, default:false },
+            { name:'b', kind:'data', type:'bool', label:'B', editable:true, default:false }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') || gi('b') }) },
+
+  select_float:{ title:'Select (float)', cat:'pure', ic:'⊃',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 },
+            { name:'pick', kind:'data', type:'bool', label:'Pick A', editable:true, default:true }],
+    outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => ({ res: gi('pick') ? gi('a') : gi('b') }) },
+
   math_sin:{ title:'Sin (deg)', cat:'pure', ic:'∿',
     inputs:[{ name:'x', kind:'data', type:'float', label:'Degrees', editable:true, default:0 }],
     outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
@@ -249,7 +286,7 @@ export const PALETTE = [
   ['Acciones', ['print_string', 'add_rotation', 'set_rotation', 'set_location', 'add_offset', 'set_scale']],
   ['Flujo',    ['branch', 'sequence', 'forloop', 'delay', 'timeline']],
   ['Variables',['var_get', 'var_set']],
-  ['Puros',    ['lit_float', 'lit_bool', 'lit_string', 'math_add', 'math_sub', 'math_mul', 'math_div', 'cmp_gt', 'cmp_lt', 'cmp_eq', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
+  ['Puros',    ['lit_float', 'lit_bool', 'lit_string', 'math_add', 'math_sub', 'math_mul', 'math_div', 'cmp_gt', 'cmp_lt', 'cmp_ge', 'cmp_le', 'cmp_eq', 'cmp_ne', 'bool_and', 'bool_or', 'select_float', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
 ];
 
 export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426' };
@@ -288,7 +325,13 @@ export const DESC = {
   math_div:     'Divide A por B (nodo puro; si B es 0 devuelve 0).',
   cmp_gt:       'Devuelve verdadero si A es mayor que B (nodo puro).',
   cmp_lt:       'Devuelve verdadero si A es menor que B (nodo puro).',
+  cmp_ge:       'Verdadero si A es mayor o igual que B (nodo puro).',
+  cmp_le:       'Verdadero si A es menor o igual que B (nodo puro).',
   cmp_eq:       'Devuelve verdadero si A es igual a B (nodo puro).',
+  cmp_ne:       'Verdadero si A es distinto de B (nodo puro).',
+  bool_and:     'Verdadero sólo si A y B son verdaderos (nodo puro).',
+  bool_or:      'Verdadero si A o B es verdadero (nodo puro).',
+  select_float: 'Devuelve A si "Pick A" es verdadero; si no, B (nodo puro).',
   math_sin:     'Seno del ángulo en grados (nodo puro).',
   get_time:     'Segundos transcurridos desde que arrancó la simulación.',
   get_location: 'Posición actual (X, Y) del Actor.',

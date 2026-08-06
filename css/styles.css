@@ -182,6 +182,8 @@ path.exec.flowing{stroke-dasharray:5 9;animation:flow .55s linear infinite}
 
 /* nodos importados desde UE */
 .node.imported{border:1px dashed #5a5a66}
+.node-badge{margin-left:auto;font-size:8.5px;text-transform:uppercase;letter-spacing:.4px;
+  background:#0005;color:#e9c877;padding:1px 6px;border-radius:8px;font-weight:700;white-space:nowrap}
 
 /* modal de importación */
 .modal{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:100}

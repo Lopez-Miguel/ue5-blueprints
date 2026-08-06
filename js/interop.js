@@ -125,7 +125,13 @@ function mapNative(short, funcName, varName, evtName){
     if (/^Divide_/.test(funcName))      return { type:'math_div', rename:{ A:'a', B:'b', ReturnValue:'res' } };
     if (/^Greater_/.test(funcName))     return { type:'cmp_gt', rename:{ A:'a', B:'b', ReturnValue:'res' } };
     if (/^Less_/.test(funcName))        return { type:'cmp_lt', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^GreaterEqual_/.test(funcName))return { type:'cmp_ge', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^LessEqual_/.test(funcName))   return { type:'cmp_le', rename:{ A:'a', B:'b', ReturnValue:'res' } };
     if (/^EqualEqual_/.test(funcName))  return { type:'cmp_eq', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^NotEqual_/.test(funcName))    return { type:'cmp_ne', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^BooleanAND$/.test(funcName))  return { type:'bool_and', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^BooleanOR$/.test(funcName))   return { type:'bool_or',  rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^SelectFloat$/.test(funcName)) return { type:'select_float', rename:{ A:'a', B:'b', bPickA:'pick', ReturnValue:'res' } };
   }
   return null;
 }

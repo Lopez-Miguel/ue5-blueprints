@@ -52,6 +52,13 @@ function buildNode(n){
   head.className = 'node-header';
   head.title = DESC[n.type] || '';
   head.innerHTML = `<span class="ic">${t.ic || ''}</span>${title}`;
+  if (t.imported){
+    const badge = document.createElement('span');
+    badge.className = 'node-badge';
+    badge.textContent = 'sólo vista';
+    badge.title = 'Nodo importado sin equivalente: no se ejecuta';
+    head.appendChild(badge);
+  }
   el.appendChild(head);
 
   const rows = document.createElement('div');

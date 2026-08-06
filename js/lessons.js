@@ -197,6 +197,30 @@ export const LESSONS = [
     check:(cap) => cap.vars.Contador >= 60,
   },
 
+  {
+    id:'ex-divide', level:'intermedio', exercise:true, usesStage:false,
+    title:'Ejercicio · Dividir y comparar',
+    concept:'Combiná Divide y Less para decidir según un cálculo.',
+    goal:'20 ÷ 4 ya está armado. Si el resultado es menor que 10, hacé que imprima "menor a 10" (cableá Less→Condition y la salida True al Print correcto).',
+    hint:'La salida de Less es un bool: va a Condition del Branch. La salida True del Branch imprime "menor a 10".',
+    spec:{
+      nodes:[
+        { k:'event_begin',  x:20,  y:60 },
+        { k:'lit_float',    x:20,  y:250, props:{ value:20 } },
+        { k:'lit_float',    x:20,  y:360, props:{ value:4 } },
+        { k:'math_div',     x:280, y:270 },
+        { k:'lit_float',    x:280, y:440, props:{ value:10 } },
+        { k:'cmp_lt',       x:520, y:300 },
+        { k:'branch',       x:340, y:60 },
+        { k:'print_string', x:640, y:40,  props:{ in:'menor a 10' } },
+        { k:'print_string', x:640, y:170, props:{ in:'10 o más' } },
+      ],
+      links:[ [1,'val',3,'a'], [2,'val',3,'b'], [3,'res',5,'a'], [4,'val',5,'b'] ],
+    },
+    solution:[ [0,'then',6,'exec'], [5,'res',6,'cond'], [6,'true',7,'exec'], [6,'false',8,'exec'] ],
+    check:(cap) => cap.log.some(l => l.toLowerCase().includes('menor a 10')),
+  },
+
   /* ---------------- AVANZADO ---------------- */
   {
     id:'delay', level:'avanzado',
