@@ -40,7 +40,7 @@ export function applySelection(){
 function buildNode(n){
   const t = T[n.type];
   const cat = n.props.cat || t.cat;
-  const title = n.props.title || t.title;
+  const title = (t.dynTitle && t.dynTitle(n)) || n.props.title || t.title;
   const el = document.createElement('div');
   el.className = 'node ' + cat + (t.imported ? ' imported' : '') +
     (G.sel?.kind === 'node' && G.sel.id === n.id ? ' sel' : '');
@@ -103,6 +103,7 @@ function buildNode(n){
   // Nodos de variable: desplegable para elegir la variable (fila SIN pin,
   // renderizada DESPUÉS de las filas de pines para no correr las posiciones).
   if (t.variableNode) rows.appendChild(varSelectRow(n));
+  if (t.eventNode) rows.appendChild(eventSelectRow(n));
 
   // Props sin pin (p. ej. el valor del literal Float).
   for (const p of (t.props || [])){
@@ -189,7 +190,31 @@ function varSelectRow(n){
   return row;
 }
 
-/* -------------------- cables -------------------- */
+function eventSelectRow(n){
+  const row = document.createElement('div');
+  row.className = 'prop selrow';
+  const sel = document.createElement('select');
+  sel.className = 'ed';
+  if (!G.events.length){
+    const o = document.createElement('option');
+    o.textContent = '(creá un evento)'; o.disabled = true; o.selected = true;
+    sel.appendChild(o);
+  }
+  for (const e of G.events){
+    const o = document.createElement('option');
+    o.value = e.id; o.textContent = e.name;
+    if (e.id === n.props.evId) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('pointerdown', ev => ev.stopPropagation());
+  sel.addEventListener('change', () => {
+    n.props.evId = sel.value;
+    pruneBadWires();     // cambiaron los pines: limpiar cables incompatibles
+    renderNodes();
+  });
+  row.appendChild(sel);
+  return row;
+}
 const SVGNS = 'http://www.w3.org/2000/svg';
 const mkPath = () => document.createElementNS(SVGNS, 'path');
 const TLW = 176, TLH = 92;   // dimensiones internas del editor de curva

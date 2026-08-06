@@ -12,10 +12,15 @@
 //   variableNode : muestra un desplegable para elegir la variable
 
 import { num, clamp, sampleCurve, coerce } from './util.js';
-import { getVar } from './state.js';
+import { getVar, getEvent } from './state.js';
 
 const vtype = n => { const v = getVar(n.props.varId); return v ? v.type : 'float'; };
 const vname = n => { const v = getVar(n.props.varId); return v ? v.name : '(sin variable)'; };
+
+const evOf     = n => getEvent(n.props.evId);
+const evName   = n => { const e = evOf(n); return e ? e.name : '(sin evento)'; };
+const evParams = n => { const e = evOf(n); return e ? e.params : []; };
+const defOfType = t => t === 'bool' ? false : t === 'string' ? '' : 0;
 
 export const T = {
   /* ---------------- eventos ---------------- */
@@ -139,6 +144,30 @@ export const T = {
                    { name:'value', kind:'data', type:vtype(n), label:vname(n), editable:true, default:0 }],
     outputs:[{ name:'then', kind:'exec' }],
     run:(n, ctx, gi, fire) => { ctx.vars[n.props.varId] = gi('value'); fire('then'); } },
+
+  /* ---------------- eventos custom ---------------- */
+  custom_event:{ title:'Custom Event', cat:'ev', ic:'⚡', eventNode:true,
+    dynTitle:(n) => evName(n),
+    inputs:[],
+    outputs:(n) => [{ name:'then', kind:'exec', label:'' }]
+      .concat(evParams(n).map(p => ({ name:p.id, kind:'data', type:p.type, label:p.name }))),
+    // Sus salidas de dato entregan los argumentos del marco de llamada actual.
+    readData:(n, ctx, pin) => {
+      const f = ctx.callStack[ctx.callStack.length - 1];
+      return f ? f.args[pin] : 0;
+    } },
+
+  call_event:{ title:'Call', cat:'act', ic:'⚡', eventNode:true,
+    dynTitle:(n) => 'Call ' + evName(n),
+    inputs:(n) => [{ name:'exec', kind:'exec' }]
+      .concat(evParams(n).map(p => ({ name:p.id, kind:'data', type:p.type, label:p.name, editable:true, default:defOfType(p.type) }))),
+    outputs:[{ name:'then', kind:'exec' }],
+    run:(n, ctx, gi, fire) => {
+      const args = {};
+      for (const p of evParams(n)) args[p.id] = gi(p.id);
+      ctx.callEvent(n.props.evId, args);
+      fire('then');
+    } },
 
   /* ---------------- puros ---------------- */
   lit_float:{ title:'Float', cat:'pure', ic:'#',
@@ -286,6 +315,7 @@ export const PALETTE = [
   ['Acciones', ['print_string', 'add_rotation', 'set_rotation', 'set_location', 'add_offset', 'set_scale']],
   ['Flujo',    ['branch', 'sequence', 'forloop', 'delay', 'timeline']],
   ['Variables',['var_get', 'var_set']],
+  ['Eventos custom',['custom_event', 'call_event']],
   ['Puros',    ['lit_float', 'lit_bool', 'lit_string', 'math_add', 'math_sub', 'math_mul', 'math_div', 'cmp_gt', 'cmp_lt', 'cmp_ge', 'cmp_le', 'cmp_eq', 'cmp_ne', 'bool_and', 'bool_or', 'select_float', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
 ];
 
@@ -316,6 +346,8 @@ export const DESC = {
   timeline:     'Reproduce una curva en el tiempo. Value = la curva; Alpha = 0→1.',
   var_get:      'Lee el valor de una variable.',
   var_set:      'Escribe un valor en una variable.',
+  custom_event: 'Un evento propio: punto de entrada reutilizable. Se dispara con un nodo Call.',
+  call_event:   'Llama a un evento custom, pasándole sus parámetros.',
   lit_float:    'Un número constante (dato float).',
   lit_bool:     'Un valor booleano constante (verdadero/falso).',
   lit_string:   'Un texto constante.',

@@ -20,17 +20,27 @@ export const ctx = {
   dt: 0,
   vars: {},                 // { varId: valor }
   timelines: new Map(),     // nodeId -> { t, playing }
+  callStack: [],            // marcos de eventos custom: { args }
   heat: {},                 // nodeId -> 0..1 (brillo de ejecución, decae por frame)
   wireHeat: {},             // wireId -> 0..1 (cable recorrido, decae por frame)
   trace: [],                // pasos del último disparo: { id, title, inPin, values }
   log: () => {},            // lo asigna runtime.js (consola)
+  // Llama a un evento custom: fija sus argumentos y ejecuta su cuerpo.
+  callEvent(evId, args){
+    const ev = G.nodes.find(n => n.type === 'custom_event' && n.props.evId === evId);
+    if (!ev) return;
+    this.heat[ev.id] = 1;
+    this.callStack.push({ args: args || {} });
+    fire(ev.id, 'then');
+    this.callStack.pop();
+  },
   schedule(id, dur){
     if (!scheduler.some(s => s.node === id)) scheduler.push({ node:id, remaining: Math.max(0, dur) });
   },
   overBudget: () => steps > MAX_STEPS,
 };
 
-export function resetScheduler(){ scheduler.length = 0; ctx.timelines.clear(); }
+export function resetScheduler(){ scheduler.length = 0; ctx.timelines.clear(); ctx.callStack.length = 0; }
 
 export function initVars(){
   ctx.vars = {};

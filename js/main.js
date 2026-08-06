@@ -6,6 +6,7 @@ import { renderNodes, applyWorld, clearLearning } from './render.js';
 import { addNode, initInteraction, fitView } from './interaction.js';
 import { renderActor, clearLog, bindRuntimeUI, buildStageGrid, stop, runHeadless } from './runtime.js';
 import { buildVarPanel } from './variables.js';
+import { buildEventPanel } from './events.js';
 import { loadLocal, exportFile, importFile, markDirty, getProgress, markComplete, loadLayout, saveLayout } from './storage.js';
 import { importUE } from './interop.js';
 import { LESSONS } from './lessons.js';
@@ -142,7 +143,7 @@ function solveExercise(){
   linkByIndex(currentLesson.solution || []);
   ctx.actor = { x:0, y:0, rot:0, scale:1 }; ctx.time = 0;
   resetInstrumentation();
-  buildVarPanel();
+  buildVarPanel(); buildEventPanel();
   applyWorld();
   renderNodes();
   renderActor();
@@ -167,7 +168,7 @@ function loadLesson(lesson, save = true){
   resetInstrumentation();
   showLesson(lesson);
   setStageVisible(lesson.usesStage !== false);
-  buildVarPanel();
+  buildVarPanel(); buildEventPanel();
   applyWorld();
   renderNodes();
   renderActor();
@@ -291,7 +292,7 @@ function bindTopBar(){
     if (f) importFile(f, (ok) => {
       if (ok){
         showLesson(null); setStageVisible(true);
-        buildVarPanel(); applyWorld(); renderNodes(); renderActor(); markDirty();
+        buildVarPanel(); buildEventPanel(); applyWorld(); renderNodes(); renderActor(); markDirty();
       } else alert('No pude leer ese archivo como grafo válido.');
     });
     e.target.value = '';
@@ -312,7 +313,7 @@ function bindUEModal(){
     const res = importUE(text.value);
     if (res.error){ msg.textContent = res.error; return; }
     showLesson(null); setStageVisible(true);
-    buildVarPanel(); renderNodes(); fitView(); markDirty();
+    buildVarPanel(); buildEventPanel(); renderNodes(); fitView(); markDirty();
     const generic = res.count - res.mapped;
     let extra = '';
     if (generic > 0){
@@ -349,7 +350,7 @@ bindResizers();
 if (loadLocal()){
   // Recupera el último trabajo guardado.
   showLesson(null); setStageVisible(true);
-  buildVarPanel(); applyWorld(); renderNodes(); renderActor(); clearLog();
+  buildVarPanel(); buildEventPanel(); applyWorld(); renderNodes(); renderActor(); clearLog();
 } else {
   // Primera visita: abrí la lección 1 (sin autoguardar hasta que el usuario edite).
   loadLesson(LESSONS[0], false);

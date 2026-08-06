@@ -9,6 +9,7 @@ export const G = {
   nodes: [],       // { id, type, x, y, props, _index? }
   wires: [],       // { id, kind:'exec'|'data', type, from:{node,pin}, to:{node,pin} }
   variables: [],   // { id, name, type:'float'|'bool'|'string', def }
+  events: [],      // { id, name, params:[{name, type}] }  (custom events)
   sel: null,       // { kind:'node'|'wire', id }
   world: { x:60, y:40, k:1 },
 };
@@ -18,6 +19,7 @@ export const LAY = { W:200, HEAD:32, ROW:28, PAD:5 };
 
 export const getNode = id => G.nodes.find(n => n.id === id);
 export const getVar  = id => G.variables.find(v => v.id === id);
+export const getEvent = id => G.events.find(e => e.id === id);
 
 // Resuelve inputs/outputs que pueden ser array o función(node) (pines dinámicos).
 export function getInputs(n){ const v = T[n.type].inputs;  return (typeof v === 'function' ? v(n) : v) || []; }
@@ -64,7 +66,7 @@ export function pruneBadWires(){
 
 /* --------- persistencia --------- */
 export function serialize(){
-  return JSON.stringify({ v:1, nodes:G.nodes, wires:G.wires, variables:G.variables, world:G.world });
+  return JSON.stringify({ v:1, nodes:G.nodes, wires:G.wires, variables:G.variables, events:G.events, world:G.world });
 }
 export function deserialize(txt){
   const d = JSON.parse(txt);
@@ -72,6 +74,7 @@ export function deserialize(txt){
   G.nodes = d.nodes;
   G.wires = d.wires || [];
   G.variables = d.variables || [];
+  G.events = d.events || [];
   if (d.world) G.world = d.world;
   G.sel = null;
   pruneBadWires();
@@ -87,6 +90,7 @@ export function deserialize(txt){
    Usado por las lecciones cargables.                                         */
 export function buildGraph(spec){
   G.variables = (spec.vars || []).map(v => ({ id:uid('v'), name:v.name, type:v.type || 'float', def:v.def ?? 0 }));
+  G.events = [];
   const vid = Object.fromEntries(G.variables.map(v => [v.name, v.id]));
 
   G.nodes = (spec.nodes || []).map(nd => {
