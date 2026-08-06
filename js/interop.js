@@ -114,10 +114,18 @@ function mapNative(short, funcName, varName, evtName){
                : /ToInt/.test(funcName)             ? 'to_int' : null;
       if (to) return { type:to, conv:true };
     }
+    if (/^MakeLiteral(Float|Double|Int)$/.test(funcName)) return { type:'lit_float',  literal:true };
+    if (/^MakeLiteralBool$/.test(funcName))               return { type:'lit_bool',   literal:true };
+    if (/^MakeLiteralString$/.test(funcName))             return { type:'lit_string', literal:true };
+    if (/^Delay$/.test(funcName))       return { type:'delay', rename:{ execute:'exec', then:'completed', Duration:'dur' } };
     if (/^PrintString$/.test(funcName)) return { type:'print_string', rename:{ execute:'exec', then:'then', InString:'in' } };
     if (/^Add_/.test(funcName))         return { type:'math_add', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^Subtract_/.test(funcName))    return { type:'math_sub', rename:{ A:'a', B:'b', ReturnValue:'res' } };
     if (/^Multiply_/.test(funcName))    return { type:'math_mul', rename:{ A:'a', B:'b', ReturnValue:'res' } };
-    if (/^Greater_/.test(funcName))     return { type:'cmp_gt',   rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^Divide_/.test(funcName))      return { type:'math_div', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^Greater_/.test(funcName))     return { type:'cmp_gt', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^Less_/.test(funcName))        return { type:'cmp_lt', rename:{ A:'a', B:'b', ReturnValue:'res' } };
+    if (/^EqualEqual_/.test(funcName))  return { type:'cmp_eq', rename:{ A:'a', B:'b', ReturnValue:'res' } };
   }
   return null;
 }
@@ -152,6 +160,7 @@ export function parseUEBlueprint(text){
   const pinMap = {};       // PinId (GUID) -> { node, pin, dir, kind, type }
   const linkPairs = [];    // [guidA, guidB]
   const importVars = {};   // nombre -> { id, name, type, def }
+  const genericTitles = []; // nodos que quedaron sólo-visualización
   let mapped = 0;
   let minX = Infinity, minY = Infinity;
 
@@ -190,7 +199,11 @@ export function parseUEBlueprint(text){
       for (const ps of pinStrings){
         const p = parsePin(ps); if (!p || p.hidden) continue;
         let np;
-        if (native.conv){
+        if (native.literal){
+          if (p.dir === 'out' && p.name === 'ReturnValue') np = 'val';
+          else if (p.dir === 'in' && p.name === 'Value'){ if (p.dv != null) n.props.value = p.dv; np = null; }
+          else np = null;
+        } else if (native.conv){
           if (p.dir === 'in' && p.kind === 'data'){ np = 'in'; n.props.from = p.type; }
           else if (p.dir === 'out' && p.name === 'ReturnValue'){ np = 'out'; }
           else np = null;
@@ -230,6 +243,7 @@ export function parseUEBlueprint(text){
         for (const g of p.links) linkPairs.push([p.pinId, g]);
       }
       nodes.push({ id, type:'ue_node', _x:posX, _y:posY, props:{ title, cat, pins, ueName } });
+      genericTitles.push(title);
     }
   }
 
@@ -258,7 +272,7 @@ export function parseUEBlueprint(text){
       from:{ node:out.node, pin:out.pin }, to:{ node:inp.node, pin:inp.pin } });
   }
 
-  return { nodes, wires, variables:Object.values(importVars), mapped, warnings };
+  return { nodes, wires, variables:Object.values(importVars), mapped, generic:genericTitles, warnings };
 }
 
 // Parsea y agrega el resultado al grafo actual. Devuelve stats para la UI.
@@ -268,5 +282,6 @@ export function importUE(text){
   for (const v of res.variables) G.variables.push(v);
   for (const n of res.nodes) G.nodes.push(n);
   for (const w of res.wires) G.wires.push(w);
-  return { count:res.nodes.length, wireCount:res.wires.length, mapped:res.mapped, warnings:res.warnings || [] };
+  return { count:res.nodes.length, wireCount:res.wires.length, mapped:res.mapped,
+           generic:res.generic, warnings:res.warnings || [] };
 }

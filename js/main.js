@@ -3,7 +3,7 @@
 import { buildGraph, linkByIndex } from './state.js';
 import { T, PALETTE, CAT_COLOR, DESC } from './nodeTypes.js';
 import { renderNodes, applyWorld, clearLearning } from './render.js';
-import { addNode, initInteraction } from './interaction.js';
+import { addNode, initInteraction, fitView } from './interaction.js';
 import { renderActor, clearLog, bindRuntimeUI, buildStageGrid, stop, runHeadless } from './runtime.js';
 import { buildVarPanel } from './variables.js';
 import { loadLocal, exportFile, importFile, markDirty, getProgress, markComplete, loadLayout, saveLayout } from './storage.js';
@@ -312,10 +312,16 @@ function bindUEModal(){
     const res = importUE(text.value);
     if (res.error){ msg.textContent = res.error; return; }
     showLesson(null); setStageVisible(true);
-    buildVarPanel(); renderNodes(); markDirty();
-    const w = res.warnings.length ? ` · ${res.warnings.length} avisos` : '';
-    msg.textContent = `Importados ${res.count} nodos (${res.mapped} ejecutables), ${res.wireCount} conexiones${w}.`;
-    setTimeout(close, 1100);
+    buildVarPanel(); renderNodes(); fitView(); markDirty();
+    const generic = res.count - res.mapped;
+    let extra = '';
+    if (generic > 0){
+      const names = [...new Set(res.generic)].slice(0, 3).join(', ');
+      extra += ` · ${generic} sólo-visualización (${names}${res.generic.length > 3 ? '…' : ''})`;
+    }
+    if (res.warnings.length) extra += ` · ${res.warnings.length} avisos`;
+    msg.textContent = `Importados ${res.count} nodos (${res.mapped} ejecutables), ${res.wireCount} conexiones${extra}.`;
+    setTimeout(close, generic > 0 ? 2400 : 1100);
   };
 }
 

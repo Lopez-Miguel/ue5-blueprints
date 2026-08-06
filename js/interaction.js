@@ -1,6 +1,6 @@
 // interaction.js — puntero: conectar, mover, panear, zoom, seleccionar, borrar.
 
-import { G, getNode, pinPos } from './state.js';
+import { G, getNode, pinPos, LAY, getInputs, getOutputs } from './state.js';
 import { refs, renderNodes, updateWires, applyWorld, applySelection } from './render.js';
 import { T, CONV } from './nodeTypes.js';
 import { uid, clamp, $, PC } from './util.js';
@@ -180,6 +180,23 @@ function onWheel(e){
   zoomAround(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 0.89);
 }
 
+// Encuadra todo el grafo en el lienzo (zoom-to-fit).
+export function fitView(){
+  if (!G.nodes.length){ G.world = { x:60, y:40, k:1 }; applyWorld(); return; }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of G.nodes){
+    const rows = Math.max(getInputs(n).length, getOutputs(n).length);
+    const h = LAY.HEAD + rows * LAY.ROW + 46;   // alto aproximado del nodo
+    minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + LAY.W); maxY = Math.max(maxY, n.y + h);
+  }
+  const r = refs.wrap.getBoundingClientRect();
+  const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY), pad = 70;
+  const k = clamp(Math.min((r.width - pad) / bw, (r.height - pad) / bh, 1.3), 0.3, 1.3);
+  G.world = { x: (r.width - bw * k) / 2 - minX * k, y: (r.height - bh * k) / 2 - minY * k, k };
+  applyWorld();
+}
+
 export function initInteraction(){
   refs.wrap.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
@@ -190,5 +207,5 @@ export function initInteraction(){
   const c = () => { const r = refs.wrap.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
   $('#zin').onclick  = () => zoomAround(...c(), 1.15);
   $('#zout').onclick = () => zoomAround(...c(), 0.87);
-  $('#zfit').onclick = () => { G.world.x = 60; G.world.y = 40; G.world.k = 1; applyWorld(); };
+  $('#zfit').onclick = fitView;
 }

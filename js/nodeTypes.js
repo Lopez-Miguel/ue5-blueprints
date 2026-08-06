@@ -11,7 +11,7 @@
 //   isEvent : punto de entrada     latent : nodo latente (usa el scheduler)
 //   variableNode : muestra un desplegable para elegir la variable
 
-import { num, clamp, sampleCurve } from './util.js';
+import { num, clamp, sampleCurve, coerce } from './util.js';
 import { getVar } from './state.js';
 
 const vtype = n => { const v = getVar(n.props.varId); return v ? v.type : 'float'; };
@@ -164,6 +164,40 @@ export const T = {
     outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
     eval:(n, gi) => ({ res: gi('a') > gi('b') }) },
 
+  cmp_lt:{ title:'Less  <', cat:'pure', ic:'<',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') < gi('b') }) },
+
+  cmp_eq:{ title:'Equal  =', cat:'pure', ic:'=',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'bool', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') === gi('b') }) },
+
+  math_sub:{ title:'Subtract  −', cat:'pure', ic:'−',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:0 }],
+    outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => ({ res: gi('a') - gi('b') }) },
+
+  math_div:{ title:'Divide  ÷', cat:'pure', ic:'÷',
+    inputs:[{ name:'a', kind:'data', type:'float', label:'A', editable:true, default:0 },
+            { name:'b', kind:'data', type:'float', label:'B', editable:true, default:1 }],
+    outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
+    eval:(n, gi) => { const b = gi('b'); return { res: b === 0 ? 0 : gi('a') / b }; } },
+
+  lit_bool:{ title:'Bool', cat:'pure', ic:'✓',
+    inputs:[], outputs:[{ name:'val', kind:'data', type:'bool', label:'' }],
+    props:[{ name:'value', type:'bool', label:'', default:false }],
+    eval:(n) => ({ val: coerce(n.props.value, 'bool') }) },
+
+  lit_string:{ title:'String', cat:'pure', ic:'"',
+    inputs:[], outputs:[{ name:'val', kind:'data', type:'string', label:'' }],
+    props:[{ name:'value', type:'string', label:'', default:'' }],
+    eval:(n) => ({ val: n.props.value == null ? '' : String(n.props.value) }) },
+
   math_sin:{ title:'Sin (deg)', cat:'pure', ic:'∿',
     inputs:[{ name:'x', kind:'data', type:'float', label:'Degrees', editable:true, default:0 }],
     outputs:[{ name:'res', kind:'data', type:'float', label:'' }],
@@ -215,7 +249,7 @@ export const PALETTE = [
   ['Acciones', ['print_string', 'add_rotation', 'set_rotation', 'set_location', 'add_offset', 'set_scale']],
   ['Flujo',    ['branch', 'sequence', 'forloop', 'delay', 'timeline']],
   ['Variables',['var_get', 'var_set']],
-  ['Puros',    ['lit_float', 'math_add', 'math_mul', 'cmp_gt', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
+  ['Puros',    ['lit_float', 'lit_bool', 'lit_string', 'math_add', 'math_sub', 'math_mul', 'math_div', 'cmp_gt', 'cmp_lt', 'cmp_eq', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
 ];
 
 export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426' };
@@ -246,9 +280,15 @@ export const DESC = {
   var_get:      'Lee el valor de una variable.',
   var_set:      'Escribe un valor en una variable.',
   lit_float:    'Un número constante (dato float).',
+  lit_bool:     'Un valor booleano constante (verdadero/falso).',
+  lit_string:   'Un texto constante.',
   math_add:     'Suma dos números (nodo puro, sin efectos).',
+  math_sub:     'Resta B a A (nodo puro).',
   math_mul:     'Multiplica dos números (nodo puro).',
+  math_div:     'Divide A por B (nodo puro; si B es 0 devuelve 0).',
   cmp_gt:       'Devuelve verdadero si A es mayor que B (nodo puro).',
+  cmp_lt:       'Devuelve verdadero si A es menor que B (nodo puro).',
+  cmp_eq:       'Devuelve verdadero si A es igual a B (nodo puro).',
   math_sin:     'Seno del ángulo en grados (nodo puro).',
   get_time:     'Segundos transcurridos desde que arrancó la simulación.',
   get_location: 'Posición actual (X, Y) del Actor.',
