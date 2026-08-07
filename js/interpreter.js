@@ -34,6 +34,17 @@ export const ctx = {
     fire(ev.id, 'then');
     this.callStack.pop();
   },
+  // Llama a una función: ejecuta su cuerpo y devuelve el objeto de retornos.
+  callFunction(fnId, args){
+    const entry = G.nodes.find(n => n.type === 'fn_entry' && n.props.fnId === fnId);
+    if (!entry) return {};
+    this.heat[entry.id] = 1;
+    const frame = { args: args || {}, returns: {} };
+    this.callStack.push(frame);
+    fire(entry.id, 'then');
+    this.callStack.pop();
+    return frame.returns;
+  },
   schedule(id, dur){
     if (!scheduler.some(s => s.node === id)) scheduler.push({ node:id, remaining: Math.max(0, dur) });
   },

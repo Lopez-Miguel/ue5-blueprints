@@ -104,6 +104,7 @@ function buildNode(n){
   // renderizada DESPUÉS de las filas de pines para no correr las posiciones).
   if (t.variableNode) rows.appendChild(varSelectRow(n));
   if (t.eventNode) rows.appendChild(eventSelectRow(n));
+  if (t.functionNode) rows.appendChild(functionSelectRow(n));
 
   // Props sin pin (p. ej. el valor del literal Float).
   for (const p of (t.props || [])){
@@ -210,6 +211,32 @@ function eventSelectRow(n){
   sel.addEventListener('change', () => {
     n.props.evId = sel.value;
     pruneBadWires();     // cambiaron los pines: limpiar cables incompatibles
+    renderNodes();
+  });
+  row.appendChild(sel);
+  return row;
+}
+
+function functionSelectRow(n){
+  const row = document.createElement('div');
+  row.className = 'prop selrow';
+  const sel = document.createElement('select');
+  sel.className = 'ed';
+  if (!G.functions.length){
+    const o = document.createElement('option');
+    o.textContent = '(creá una función)'; o.disabled = true; o.selected = true;
+    sel.appendChild(o);
+  }
+  for (const f of G.functions){
+    const o = document.createElement('option');
+    o.value = f.id; o.textContent = f.name;
+    if (f.id === n.props.fnId) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.addEventListener('pointerdown', ev => ev.stopPropagation());
+  sel.addEventListener('change', () => {
+    n.props.fnId = sel.value;
+    pruneBadWires();
     renderNodes();
   });
   row.appendChild(sel);

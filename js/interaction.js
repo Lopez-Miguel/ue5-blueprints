@@ -26,6 +26,7 @@ export function addNode(type){
   const t = T[type];
   if (t.variableNode && G.variables[0]) n.props.varId = G.variables[0].id;
   if (t.eventNode && G.events[0]) n.props.evId = G.events[0].id;
+  if (t.functionNode && G.functions[0]) n.props.fnId = G.functions[0].id;
   const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
   for (const i of ins) if (i.editable) n.props[i.name] = i.default;
   for (const pr of (t.props || [])) n.props[pr.name] = pr.default;

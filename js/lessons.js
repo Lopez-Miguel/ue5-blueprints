@@ -281,6 +281,61 @@ export const LESSONS = [
     check:(cap) => cap.time > 0.5 && Math.abs(cap.actor.rot - 45 * cap.time) < 5,
   },
 
+  {
+    id:'eventos-custom', level:'avanzado',
+    title:'Eventos custom',
+    concept:'Un Custom Event es lógica reutilizable con nombre. La llamás con Call y le pasás parámetros, ' +
+            'sin duplicar nodos. Acá se llama a "Saludar" dos veces con distinto texto.',
+    task:'Usá BeginPlay ▷ y mirá la consola: "¡Hola!" y después "Chau", ambos desde el mismo evento.',
+    usesStage:false,
+    spec:{
+      events:[ { name:'Saludar', params:[{ name:'texto', type:'string' }] } ],
+      nodes:[
+        { k:'event_begin',  x:20,  y:40 },
+        { k:'sequence',     x:250, y:40 },
+        { k:'lit_string',   x:250, y:250, props:{ value:'¡Hola!' } },
+        { k:'call_event',   x:520, y:20,  ev:'Saludar' },
+        { k:'lit_string',   x:250, y:360, props:{ value:'Chau' } },
+        { k:'call_event',   x:520, y:200, ev:'Saludar' },
+        { k:'custom_event', x:20,  y:480, ev:'Saludar' },
+        { k:'print_string', x:340, y:480 },
+      ],
+      links:[
+        [0,'then',1,'exec'],
+        [1,'t0',3,'exec'], [2,'val',3,'texto'],
+        [1,'t1',5,'exec'], [4,'val',5,'texto'],
+        [6,'then',7,'exec'], [6,'texto',7,'in'],
+      ],
+    },
+  },
+  {
+    id:'funciones', level:'avanzado',
+    title:'Funciones (con retorno)',
+    concept:'Una función recibe parámetros y DEVUELVE valores. Entry entrega los parámetros, Return define ' +
+            'lo que devuelve, y Call la usa como un valor. Acá "Doble(x)" devuelve x × 2.',
+    task:'Usá BeginPlay ▷: Doble(21) devuelve 42 y se imprime. Cambiá el número de entrada y volvé a ejecutar.',
+    usesStage:false,
+    spec:{
+      functions:[ { name:'Doble', params:[{ name:'x', type:'float' }], returns:[{ name:'resultado', type:'float' }] } ],
+      nodes:[
+        { k:'fn_entry',     x:20,  y:360, fn:'Doble' },
+        { k:'lit_float',    x:20,  y:540, props:{ value:2 } },
+        { k:'math_mul',     x:300, y:400 },
+        { k:'fn_return',    x:560, y:360, fn:'Doble' },
+        { k:'event_begin',  x:20,  y:40 },
+        { k:'lit_float',    x:20,  y:180, props:{ value:21 } },
+        { k:'fn_call',      x:300, y:40,  fn:'Doble' },
+        { k:'to_string',    x:600, y:190, props:{ from:'float' } },
+        { k:'print_string', x:820, y:40 },
+      ],
+      links:[
+        [0,'x',2,'a'], [1,'val',2,'b'], [2,'res',3,'resultado'], [0,'then',3,'exec'],
+        [4,'then',6,'exec'], [5,'val',6,'x'],
+        [6,'then',8,'exec'], [6,'resultado',7,'in'], [7,'out',8,'in'],
+      ],
+    },
+  },
+
   /* ---------------- LIBRE ---------------- */
   {
     id:'blank', level:'libre',

@@ -12,7 +12,7 @@
 //   variableNode : muestra un desplegable para elegir la variable
 
 import { num, clamp, sampleCurve, coerce } from './util.js';
-import { getVar, getEvent } from './state.js';
+import { getVar, getEvent, getFunc } from './state.js';
 
 const vtype = n => { const v = getVar(n.props.varId); return v ? v.type : 'float'; };
 const vname = n => { const v = getVar(n.props.varId); return v ? v.name : '(sin variable)'; };
@@ -21,6 +21,11 @@ const evOf     = n => getEvent(n.props.evId);
 const evName   = n => { const e = evOf(n); return e ? e.name : '(sin evento)'; };
 const evParams = n => { const e = evOf(n); return e ? e.params : []; };
 const defOfType = t => t === 'bool' ? false : t === 'string' ? '' : 0;
+
+const fnOf      = n => getFunc(n.props.fnId);
+const fnName    = n => { const f = fnOf(n); return f ? f.name : '(sin función)'; };
+const fnParams  = n => { const f = fnOf(n); return f ? f.params : []; };
+const fnReturns = n => { const f = fnOf(n); return f ? f.returns : []; };
 
 export const T = {
   /* ---------------- eventos ---------------- */
@@ -169,6 +174,43 @@ export const T = {
       fire('then');
     } },
 
+  /* ---------------- funciones (con retorno) ---------------- */
+  fn_entry:{ title:'Function Entry', cat:'fn', ic:'ƒ', functionNode:true,
+    dynTitle:(n) => fnName(n),
+    inputs:[],
+    outputs:(n) => [{ name:'then', kind:'exec', label:'' }]
+      .concat(fnParams(n).map(p => ({ name:p.id, kind:'data', type:p.type, label:p.name }))),
+    readData:(n, ctx, pin) => {
+      const f = ctx.callStack[ctx.callStack.length - 1];
+      return f ? f.args[pin] : 0;
+    } },
+
+  fn_return:{ title:'Return', cat:'fn', ic:'⏎', functionNode:true,
+    dynTitle:(n) => 'Return · ' + fnName(n),
+    inputs:(n) => [{ name:'exec', kind:'exec' }]
+      .concat(fnReturns(n).map(r => ({ name:r.id, kind:'data', type:r.type, label:r.name, editable:true, default:defOfType(r.type) }))),
+    outputs:[],
+    run:(n, ctx, gi) => {
+      const f = fnOf(n);
+      const frame = ctx.callStack[ctx.callStack.length - 1];
+      if (f && frame && frame.returns) for (const r of f.returns) frame.returns[r.id] = gi(r.id);
+    } },
+
+  fn_call:{ title:'Call', cat:'act', ic:'ƒ', functionNode:true,
+    dynTitle:(n) => 'Call ' + fnName(n),
+    inputs:(n) => [{ name:'exec', kind:'exec' }]
+      .concat(fnParams(n).map(p => ({ name:p.id, kind:'data', type:p.type, label:p.name, editable:true, default:defOfType(p.type) }))),
+    outputs:(n) => [{ name:'then', kind:'exec' }]
+      .concat(fnReturns(n).map(r => ({ name:r.id, kind:'data', type:r.type, label:r.name }))),
+    run:(n, ctx, gi, fire) => {
+      const f = fnOf(n);
+      const args = {};
+      if (f) for (const p of f.params) args[p.id] = gi(p.id);
+      n._result = ctx.callFunction(n.props.fnId, args);
+      fire('then');
+    },
+    readData:(n, ctx, pin) => (n._result && n._result[pin] !== undefined) ? n._result[pin] : 0 },
+
   /* ---------------- puros ---------------- */
   lit_float:{ title:'Float', cat:'pure', ic:'#',
     inputs:[], outputs:[{ name:'val', kind:'data', type:'float', label:'' }],
@@ -316,10 +358,11 @@ export const PALETTE = [
   ['Flujo',    ['branch', 'sequence', 'forloop', 'delay', 'timeline']],
   ['Variables',['var_get', 'var_set']],
   ['Eventos custom',['custom_event', 'call_event']],
+  ['Funciones',['fn_entry', 'fn_return', 'fn_call']],
   ['Puros',    ['lit_float', 'lit_bool', 'lit_string', 'math_add', 'math_sub', 'math_mul', 'math_div', 'cmp_gt', 'cmp_lt', 'cmp_ge', 'cmp_le', 'cmp_eq', 'cmp_ne', 'bool_and', 'bool_or', 'select_float', 'math_sin', 'get_time', 'get_location', 'get_rotation']],
 ];
 
-export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426' };
+export const CAT_COLOR = { ev:'#8a2b2f', act:'#255a8c', flow:'#4b4470', pure:'#33472f', var:'#6e5426', fn:'#1f5a52' };
 
 // Autocast: al conectar un pin de dato a otro de tipo distinto, si hay entrada acá
 // se inserta el nodo de conversión correspondiente entre ambos.
@@ -348,6 +391,9 @@ export const DESC = {
   var_set:      'Escribe un valor en una variable.',
   custom_event: 'Un evento propio: punto de entrada reutilizable. Se dispara con un nodo Call.',
   call_event:   'Llama a un evento custom, pasándole sus parámetros.',
+  fn_entry:     'Entrada de una función: de acá salen sus parámetros y arranca su cuerpo.',
+  fn_return:    'Fin de una función: define los valores que devuelve.',
+  fn_call:      'Llama a una función; recibe sus parámetros y entrega sus valores de retorno.',
   lit_float:    'Un número constante (dato float).',
   lit_bool:     'Un valor booleano constante (verdadero/falso).',
   lit_string:   'Un texto constante.',

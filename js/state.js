@@ -9,7 +9,8 @@ export const G = {
   nodes: [],       // { id, type, x, y, props, _index? }
   wires: [],       // { id, kind:'exec'|'data', type, from:{node,pin}, to:{node,pin} }
   variables: [],   // { id, name, type:'float'|'bool'|'string', def }
-  events: [],      // { id, name, params:[{name, type}] }  (custom events)
+  events: [],      // { id, name, params:[{id, name, type}] }  (custom events)
+  functions: [],   // { id, name, params:[{id,name,type}], returns:[{id,name,type}] }
   sel: null,       // { kind:'node'|'wire', id }
   world: { x:60, y:40, k:1 },
 };
@@ -20,6 +21,24 @@ export const LAY = { W:200, HEAD:32, ROW:28, PAD:5 };
 export const getNode = id => G.nodes.find(n => n.id === id);
 export const getVar  = id => G.variables.find(v => v.id === id);
 export const getEvent = id => G.events.find(e => e.id === id);
+export const getFunc  = id => G.functions.find(f => f.id === id);
+
+// Traduce una referencia de pin por NOMBRE de parámetro/retorno a su id estable
+// (para eventos y funciones). Deja pasar 'exec'/'then' y nombres ya resueltos.
+export function paramPin(node, pin){
+  if (!node) return pin;
+  if (node.type === 'custom_event' || node.type === 'call_event'){
+    const e = getEvent(node.props.evId);
+    const p = e && e.params.find(x => x.name === pin);
+    return p ? p.id : pin;
+  }
+  if (node.type === 'fn_entry' || node.type === 'fn_return' || node.type === 'fn_call'){
+    const f = getFunc(node.props.fnId);
+    const p = f && [...f.params, ...f.returns].find(x => x.name === pin);
+    return p ? p.id : pin;
+  }
+  return pin;
+}
 
 // Resuelve inputs/outputs que pueden ser array o función(node) (pines dinámicos).
 export function getInputs(n){ const v = T[n.type].inputs;  return (typeof v === 'function' ? v(n) : v) || []; }
@@ -66,7 +85,8 @@ export function pruneBadWires(){
 
 /* --------- persistencia --------- */
 export function serialize(){
-  return JSON.stringify({ v:1, nodes:G.nodes, wires:G.wires, variables:G.variables, events:G.events, world:G.world });
+  return JSON.stringify({ v:1, nodes:G.nodes, wires:G.wires, variables:G.variables,
+                          events:G.events, functions:G.functions, world:G.world });
 }
 export function deserialize(txt){
   const d = JSON.parse(txt);
@@ -75,6 +95,7 @@ export function deserialize(txt){
   G.wires = d.wires || [];
   G.variables = d.variables || [];
   G.events = d.events || [];
+  G.functions = d.functions || [];
   if (d.world) G.world = d.world;
   G.sel = null;
   pruneBadWires();
@@ -83,24 +104,35 @@ export function deserialize(txt){
 /* --------- construir un grafo desde una especificación declarativa ---------
    spec = {
      vars:  [{ name, type, def }],
-     nodes: [{ k:'tipo', x, y, props:{...}, var:'NombreVar' }],   // var: para var_get/var_set
-     links: [[fromIdx, 'pinSalida', toIdx, 'pinEntrada'], ...],
+     events:    [{ name, params:[{name,type}] }],
+     functions: [{ name, params:[{name,type}], returns:[{name,type}] }],
+     nodes: [{ k:'tipo', x, y, props:{...}, var:'Nombre', ev:'Nombre', fn:'Nombre' }],
+     links: [[fromIdx, 'pinSalida', toIdx, 'pinEntrada'], ...],   // params por NOMBRE
      world: { x, y, k }
    }
    Usado por las lecciones cargables.                                         */
 export function buildGraph(spec){
   G.variables = (spec.vars || []).map(v => ({ id:uid('v'), name:v.name, type:v.type || 'float', def:v.def ?? 0 }));
-  G.events = [];
+  G.events = (spec.events || []).map(e => ({ id:uid('e'), name:e.name,
+    params:(e.params || []).map(p => ({ id:uid('p'), name:p.name, type:p.type || 'float' })) }));
+  G.functions = (spec.functions || []).map(f => ({ id:uid('f'), name:f.name,
+    params:(f.params || []).map(p => ({ id:uid('p'), name:p.name, type:p.type || 'float' })),
+    returns:(f.returns || []).map(r => ({ id:uid('p'), name:r.name, type:r.type || 'float' })) }));
+
   const vid = Object.fromEntries(G.variables.map(v => [v.name, v.id]));
+  const eid = Object.fromEntries(G.events.map(e => [e.name, e.id]));
+  const fid = Object.fromEntries(G.functions.map(f => [f.name, f.id]));
 
   G.nodes = (spec.nodes || []).map(nd => {
     const t = T[nd.k];
     const n = { id:uid(), type:nd.k, x:nd.x || 0, y:nd.y || 0, props:{} };
+    if (t.variableNode && nd.var) n.props.varId = vid[nd.var];
+    if (t.eventNode && nd.ev)     n.props.evId  = eid[nd.ev];
+    if (t.functionNode && nd.fn)  n.props.fnId  = fid[nd.fn];
     const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
     for (const i of ins) if (i.editable) n.props[i.name] = i.default;
     for (const pr of (t.props || [])) n.props[pr.name] = pr.default;
     Object.assign(n.props, nd.props || {});
-    if (t.variableNode && nd.var) n.props.varId = vid[nd.var];
     return n;
   });
 
@@ -111,13 +143,13 @@ export function buildGraph(spec){
 }
 
 // Crea cables a partir de pares [fromIdx, 'pinSalida', toIdx, 'pinEntrada'] sobre
-// los nodos actuales (mismo orden que spec.nodes). Reutilizado por "Resolver".
+// los nodos actuales. Traduce nombres de parámetro a ids. Reutilizado por "Resolver".
 export function linkByIndex(links){
-  for (const [fi, fp, ti, tp] of links){
+  for (const [fi, fp0, ti, tp0] of links){
     const from = G.nodes[fi], to = G.nodes[ti];
     if (!from || !to) continue;
-    const outs = getOutputs(from);
-    const od = outs.find(o => o.name === fp);
+    const fp = paramPin(from, fp0), tp = paramPin(to, tp0);
+    const od = getOutputs(from).find(o => o.name === fp);
     const kind = od && od.kind === 'exec' ? 'exec' : 'data';
     G.wires.push({ id:uid('w'), kind, type: kind === 'exec' ? 'exec' : (od ? od.type : 'float'),
                    from:{ node:from.id, pin:fp }, to:{ node:to.id, pin:tp } });

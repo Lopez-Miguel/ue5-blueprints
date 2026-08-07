@@ -75,7 +75,11 @@ button{font-family:var(--sans)}
 /* ---- panel de variables ---- */
 #defs{margin-top:auto}
 #eventpanel{border-top:1px solid var(--line);padding-top:10px;margin-bottom:10px}
+#funcpanel{border-top:1px solid var(--line);padding-top:10px;margin-bottom:10px}
 #varpanel{border-top:1px solid var(--line);padding-top:10px}
+.fn-sig{margin:4px 0 2px}
+.fn-sig-h{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted-2);margin:3px 2px}
+.node.fn{--h-a:#173f39;--h-b:#1f5a52}
 .ev-addparam{width:100%;background:transparent;border:1px dashed var(--line);color:var(--muted-2);
   padding:5px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-top:2px}
 .ev-addparam:hover{border-color:var(--accent);color:var(--accent)}
