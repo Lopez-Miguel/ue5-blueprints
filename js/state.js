@@ -13,7 +13,8 @@ export const G = {
   functions: [],   // { id, name, params:[{id,name,type}], returns:[{id,name,type}] }
   sel: null,       // { kind:'node'|'wire', id }
   active: 'main',  // grafo/pestaña visible: 'main' o 'fn:<functionId>'
-  world: { x:60, y:40, k:1 },
+  world: { x:60, y:40, k:1 },   // encuadre del grafo activo
+  worlds: {},      // encuadre guardado por grafo: { graphId: {x,y,k} }
 };
 
 // Geometría: alto de cabecera, alto de fila, padding superior de .rows.
@@ -86,8 +87,9 @@ export function pruneBadWires(){
 
 /* --------- persistencia --------- */
 export function serialize(){
+  G.worlds[G.active] = G.world;   // capturar el encuadre de la pestaña activa
   return JSON.stringify({ v:1, nodes:G.nodes, wires:G.wires, variables:G.variables,
-                          events:G.events, functions:G.functions, world:G.world });
+                          events:G.events, functions:G.functions, worlds:G.worlds, world:G.world });
 }
 export function deserialize(txt){
   const d = JSON.parse(txt);
@@ -97,9 +99,11 @@ export function deserialize(txt){
   G.variables = d.variables || [];
   G.events = d.events || [];
   G.functions = d.functions || [];
-  if (d.world) G.world = d.world;
-  G.sel = null;
   G.active = 'main';
+  G.worlds = d.worlds || {};
+  G.world = G.worlds.main || d.world || { x:60, y:40, k:1 };
+  G.worlds.main = G.world;
+  G.sel = null;
   for (const n of G.nodes) if (!n.g) n.g = 'main';   // compatibilidad con guardados previos
   pruneBadWires();
 }
@@ -143,6 +147,7 @@ export function buildGraph(spec){
   G.sel = null;
   G.active = 'main';
   G.world = spec.world || { x:60, y:40, k:1 };
+  G.worlds = { main: G.world };
   linkByIndex(spec.links || []);
 }
 

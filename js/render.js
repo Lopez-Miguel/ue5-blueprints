@@ -45,10 +45,14 @@ export function buildTabs(){
   for (const f of G.functions) host.appendChild(mk('fn:' + f.id, 'ƒ ' + f.name));
 }
 
-// Cambia de grafo/pestaña visible.
+// Cambia de grafo/pestaña visible, recordando el encuadre de cada uno.
 export function switchGraph(id){
+  G.worlds[G.active] = G.world;                         // guardar el encuadre actual
   G.active = id;
+  G.world = G.worlds[id] || { x:60, y:40, k:1 };        // restaurar (o default)
+  G.worlds[id] = G.world;
   G.sel = null;
+  applyWorld();
   renderNodes();
   buildTabs();
 }

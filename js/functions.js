@@ -2,7 +2,7 @@
 
 import { G, pruneBadWires, newNode } from './state.js';
 import { uid } from './util.js';
-import { renderNodes, buildTabs, switchGraph } from './render.js';
+import { renderNodes, buildTabs, switchGraph, applyWorld } from './render.js';
 import { markDirty } from './storage.js';
 
 const listEl = document.querySelector('#funclist');
@@ -40,8 +40,9 @@ function funcBlock(f){
     const gid = 'fn:' + f.id;
     G.functions = G.functions.filter(x => x.id !== f.id);
     G.nodes = G.nodes.filter(n => (n.g || 'main') !== gid);   // borra el cuerpo de la función
-    if (G.active === gid) G.active = 'main';
-    pruneBadWires(); renderNodes(); buildTabs(); buildFunctionPanel(); markDirty();
+    delete G.worlds[gid];                                     // olvidar su encuadre
+    if (G.active === gid){ G.active = 'main'; G.world = G.worlds.main || { x:60, y:40, k:1 }; }
+    pruneBadWires(); applyWorld(); renderNodes(); buildTabs(); buildFunctionPanel(); markDirty();
   });
   top.append(chip, name, del);
   box.appendChild(top);
