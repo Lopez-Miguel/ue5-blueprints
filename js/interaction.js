@@ -1,6 +1,6 @@
 // interaction.js — puntero: conectar, mover, panear, zoom, seleccionar, borrar.
 
-import { G, getNode, pinPos, LAY, getInputs, getOutputs } from './state.js';
+import { G, getNode, pinPos, LAY, getInputs, getOutputs, newNode } from './state.js';
 import { refs, renderNodes, updateWires, applyWorld, applySelection } from './render.js';
 import { T, CONV } from './nodeTypes.js';
 import { uid, clamp, $, PC } from './util.js';
@@ -22,14 +22,12 @@ export function addNode(type){
   const c = screenToWorld(r.left + r.width * 0.4 + (spawnI % 6) * 26,
                           r.top  + 120            + (spawnI % 6) * 26);
   spawnI++;
-  const n = { id:uid(), type, x:Math.round(c.x), y:Math.round(c.y), props:{} };
   const t = T[type];
-  if (t.variableNode && G.variables[0]) n.props.varId = G.variables[0].id;
-  if (t.eventNode && G.events[0]) n.props.evId = G.events[0].id;
-  if (t.functionNode && G.functions[0]) n.props.fnId = G.functions[0].id;
-  const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
-  for (const i of ins) if (i.editable) n.props[i.name] = i.default;
-  for (const pr of (t.props || [])) n.props[pr.name] = pr.default;
+  const props = {};
+  if (t.variableNode && G.variables[0]) props.varId = G.variables[0].id;
+  if (t.eventNode && G.events[0])       props.evId  = G.events[0].id;
+  if (t.functionNode && G.functions[0]) props.fnId  = G.functions[0].id;
+  const n = newNode(type, { x:Math.round(c.x), y:Math.round(c.y), g:G.active, props });
   G.nodes.push(n);
   G.sel = { kind:'node', id:n.id };
   renderNodes();   // dibujar el nodo nuevo: select() ya no reconstruye el DOM

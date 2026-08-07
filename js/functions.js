@@ -1,8 +1,8 @@
 // functions.js — panel para definir funciones (nombre + parámetros + retornos).
 
-import { G, pruneBadWires } from './state.js';
+import { G, pruneBadWires, newNode } from './state.js';
 import { uid } from './util.js';
-import { renderNodes } from './render.js';
+import { renderNodes, buildTabs, switchGraph } from './render.js';
 import { markDirty } from './storage.js';
 
 const listEl = document.querySelector('#funclist');
@@ -31,14 +31,17 @@ function funcBlock(f){
   const name = document.createElement('input');
   name.className = 'var-name-input';
   name.value = f.name;
-  name.addEventListener('input', () => { f.name = name.value; renderNodes(); markDirty(); });
+  name.addEventListener('input', () => { f.name = name.value; renderNodes(); buildTabs(); markDirty(); });
   const del = document.createElement('button');
   del.className = 'var-del';
   del.textContent = '×';
   del.title = 'Eliminar función';
   del.addEventListener('click', () => {
+    const gid = 'fn:' + f.id;
     G.functions = G.functions.filter(x => x.id !== f.id);
-    pruneBadWires(); renderNodes(); buildFunctionPanel(); markDirty();
+    G.nodes = G.nodes.filter(n => (n.g || 'main') !== gid);   // borra el cuerpo de la función
+    if (G.active === gid) G.active = 'main';
+    pruneBadWires(); renderNodes(); buildTabs(); buildFunctionPanel(); markDirty();
   });
   top.append(chip, name, del);
   box.appendChild(top);
@@ -102,6 +105,12 @@ function paramRow(list, p){
 addBtn.onclick = () => {
   const names = new Set(G.functions.map(f => f.name));
   let i = 1, nm = 'MiFuncion'; while (names.has(nm)) nm = 'MiFuncion' + (++i);
-  G.functions.push({ id:uid('f'), name:nm, params:[], returns:[] });
-  buildFunctionPanel(); markDirty();
+  const f = { id:uid('f'), name:nm, params:[], returns:[] };
+  G.functions.push(f);
+  const gid = 'fn:' + f.id;
+  G.nodes.push(newNode('fn_entry',  { x:60,  y:120, g:gid, props:{ fnId:f.id } }));
+  G.nodes.push(newNode('fn_return', { x:520, y:120, g:gid, props:{ fnId:f.id } }));
+  buildFunctionPanel();
+  switchGraph(gid);   // abre la pestaña de la nueva función (renderiza + pestañas)
+  markDirty();
 };

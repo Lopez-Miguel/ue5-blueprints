@@ -12,6 +12,7 @@ export const G = {
   events: [],      // { id, name, params:[{id, name, type}] }  (custom events)
   functions: [],   // { id, name, params:[{id,name,type}], returns:[{id,name,type}] }
   sel: null,       // { kind:'node'|'wire', id }
+  active: 'main',  // grafo/pestaña visible: 'main' o 'fn:<functionId>'
   world: { x:60, y:40, k:1 },
 };
 
@@ -98,6 +99,8 @@ export function deserialize(txt){
   G.functions = d.functions || [];
   if (d.world) G.world = d.world;
   G.sel = null;
+  G.active = 'main';
+  for (const n of G.nodes) if (!n.g) n.g = 'main';   // compatibilidad con guardados previos
   pruneBadWires();
 }
 
@@ -125,7 +128,7 @@ export function buildGraph(spec){
 
   G.nodes = (spec.nodes || []).map(nd => {
     const t = T[nd.k];
-    const n = { id:uid(), type:nd.k, x:nd.x || 0, y:nd.y || 0, props:{} };
+    const n = { id:uid(), type:nd.k, x:nd.x || 0, y:nd.y || 0, g:(nd.g ? 'fn:' + fid[nd.g] : 'main'), props:{} };
     if (t.variableNode && nd.var) n.props.varId = vid[nd.var];
     if (t.eventNode && nd.ev)     n.props.evId  = eid[nd.ev];
     if (t.functionNode && nd.fn)  n.props.fnId  = fid[nd.fn];
@@ -138,8 +141,19 @@ export function buildGraph(spec){
 
   G.wires = [];
   G.sel = null;
+  G.active = 'main';
   G.world = spec.world || { x:60, y:40, k:1 };
   linkByIndex(spec.links || []);
+}
+
+// Crea un nodo nuevo con sus props por defecto, opcionalmente en un grafo (g).
+export function newNode(type, { x = 0, y = 0, g = 'main', props = {} } = {}){
+  const t = T[type];
+  const n = { id:uid(), type, x, y, g, props:{ ...props } };
+  const ins = typeof t.inputs === 'function' ? t.inputs(n) : (t.inputs || []);
+  for (const i of ins) if (i.editable && n.props[i.name] === undefined) n.props[i.name] = i.default;
+  for (const pr of (t.props || [])) if (n.props[pr.name] === undefined) n.props[pr.name] = pr.default;
+  return n;
 }
 
 // Crea cables a partir de pares [fromIdx, 'pinSalida', toIdx, 'pinEntrada'] sobre

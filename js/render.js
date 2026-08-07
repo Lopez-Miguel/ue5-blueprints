@@ -15,6 +15,7 @@ export const refs = {
   wiresEl:  document.querySelector('#wires'),
   tempWire: document.querySelector('#tempwire'),
   trace:    document.querySelector('#trace'),
+  tabs:     document.querySelector('#tabs'),
 };
 
 export function applyWorld(){
@@ -24,8 +25,32 @@ export function applyWorld(){
 
 export function renderNodes(){
   [...refs.worldEl.querySelectorAll('.node')].forEach(e => e.remove());
-  for (const n of G.nodes) refs.worldEl.appendChild(buildNode(n));
+  for (const n of G.nodes) if ((n.g || 'main') === G.active) refs.worldEl.appendChild(buildNode(n));
   updateWires();
+}
+
+// Barra de pestañas: Event Graph + una por función.
+export function buildTabs(){
+  const host = refs.tabs;
+  if (!host) return;
+  host.innerHTML = '';
+  const mk = (id, label) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (G.active === id ? ' active' : '');
+    b.textContent = label;
+    b.onclick = () => switchGraph(id);
+    return b;
+  };
+  host.appendChild(mk('main', 'Event Graph'));
+  for (const f of G.functions) host.appendChild(mk('fn:' + f.id, 'ƒ ' + f.name));
+}
+
+// Cambia de grafo/pestaña visible.
+export function switchGraph(id){
+  G.active = id;
+  G.sel = null;
+  renderNodes();
+  buildTabs();
 }
 
 // Actualiza SÓLO el resaltado de selección, sin reconstruir los nodos.
@@ -254,6 +279,8 @@ function wirePath(a, b){
 export function updateWires(){
   [...refs.wiresEl.querySelectorAll('path.wire')].forEach(e => e.remove());
   for (const w of G.wires){
+    const fromN = getNode(w.from.node);
+    if (!fromN || (fromN.g || 'main') !== G.active) continue;   // sólo el grafo activo
     const a = pinPos(w.from.node, w.from.pin, 'out');
     const b = pinPos(w.to.node,   w.to.pin,   'in');
     const col = w.kind === 'exec' ? PC.exec : (PC[w.type] || '#888');
